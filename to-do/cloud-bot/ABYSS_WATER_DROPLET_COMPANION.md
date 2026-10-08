@@ -44,6 +44,14 @@ The user-supplied Obsidian SVG now supplies the curved crystal and nine native v
 
 These checks do not close G0/G1, real-model, full desktop or laptop acceptance. No production liquid shader, Blender clip, cast duration, input owner or rendering tier changed.
 
+## VIS-01 local diagnosis — 2026-10-09
+
+**BLOCKED_LOCAL for GPU qualification; capture-reader fix QUALIFIED offline.** The fresh `2884b133e58e98567d04b8c34c0c9a0b65ebcb85` OpenGL sequence saved 48 PNGs but exited 2 because its reader requested `baseline-repeat-0.png` while QML emitted `baseline-0-repeat.png`. Original captures and failing receipts remain under `${XDG_STATE_HOME}/hadanion/shader-ab/20261009-2884b133-g0/`.
+
+Hadanion `fb01e8075fa620b0ef49fce713db38a71e64a997`, Hadalis `114c8d4fdbe054e3e262a939f6ee3a8095d7110b`: corrected only the reader naming; its regression first reproduced the missing-file failure, then verified all 48 synthetic files, transparent RGB variance and a missing repeat. `python3 scripts/validate.py --hadalis-root <clean-host> --require-clean --only test-wull-shader-ab-contract.py test-wull-shader-sequence-contract.py` exited **0, 2 PASS / 0 FAIL / 0 SKIP**.
+
+The new exact-source GPU sequence exited **2, INCONCLUSIVE_CAPTURE_VARIANCE** across 12 cases on Qt/qsb 6.12.0, AMD Radeon 740M / Mesa 26.2.4, OpenGL. Same-item repeat differences total 15,928 baseline pixels and 53 candidate pixels; cross-item differences total 15,933. Both A/A shader source and QSB hashes are equal. This confirms capture instability, not an E1 mismatch or an established driver/shader cause. No negative or candidate A/B stage ran. Receipts, diagnostic logs and PNGs remain under `${XDG_STATE_HOME}/hadanion/shader-ab/20261009-fb01e807-g0/`. Strict RGBA comparisons and production shaders remain unchanged. Next work may proceed on the independent synthetic VIS-02 event contract; G0/G1 remain OPEN.
+
 ## P0 — Resolve renderer evidence before shader modifications
 
 - [ ] Run [G0 sequence](../../docs/HADANION_RENDERER_OPTIMIZATION_DECISION_20261008.md#one-command-local-chatbot-qualification-preferred) from **clean** Hadanion checkout on actual Wayland GPU. Require **A/A pixel-identical, deliberate negative detectable and independently built candidate A/B**; inspect receipt + images; classify variance, not guess its cause. Never reuse a report from the older schema or turn `INCONCLUSIVE` into `PASS`.
