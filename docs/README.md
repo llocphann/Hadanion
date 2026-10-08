@@ -1,0 +1,14 @@
+# Hadanion documentation
+
+**Active engineering references** (not independent competing roadmaps):
+
+- [Hadalis extraction and host API 1](HADALIS_EXTRACTION.md) — ownership, compatibility, packaging and optional loader semantics
+- [Original Hadalis source inventory](HADALIS_IMPORT.json) — pinned import provenance; retain
+- [Mochi × Mak1zu × Hadalis synthesis](HADANION_COMPANION_SYNTHESIS_20261009.md) — current design choices, permissions, separable behavior/animation/inference authority
+- [Renderer G0/G1 optimization decision and runbook](HADANION_RENDERER_OPTIMIZATION_DECISION_20261008.md) — evidence and fail-closed measurement procedures, not a separate task list
+
+**Active tasks only:** [Visual/behavior TODO](../to-do/cloud-bot/ABYSS_WATER_DROPLET_COMPANION.md) and [Local AI TODO](../to-do/cloud-bot/WULL_LOCAL_AI.md). These take precedence over chronological progress notes and old source SHAs.
+
+**Retired:** [research archive](archive/README.md), [legacy work log archive](../to-do/archive/README.md). Archived links/paths are for historical provenance only; do not implement an old phase or infer a PASS from an archived receipt.
+
+**Boundaries:** Hadanion `main` owns optional Companion; Hadalis `dev` owns host and generic AI integrations. Nothing in these docs authorizes edits to Hadalis `stable`, turning on desktop sensors, installing an LLM, or claiming measured GPU performance without current local receipts.
