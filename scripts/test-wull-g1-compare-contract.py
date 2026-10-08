@@ -62,7 +62,6 @@ with TemporaryDirectory() as root:
             raise AssertionError("should reject " + reason)
 
     should_reject(sources[:-1], "insufficient_paired")
-    should_reject(sources[:5] + [sources[0]], "insufficient_paired" ) if False else None
     should_reject(sources + [sources[0]], "duplicate_receipts")
     altered = json.loads(paths[5].read_text())
     altered["backend"] = "vulkan"
