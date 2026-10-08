@@ -4,6 +4,21 @@
 
 **Historical cleanup:** The original 3,059-line imported Hadalis tracker (including pointer investigations, old dev/source SHA checkpoints, obsolete phase 0–5 roadmap and the earlier Mochi proposal) is preserved verbatim in [archive](../archive/ABYSS_WATER_DROPLET_COMPANION_PRE_CLEANUP_20261009.md). It is **retired for planning and status**. Do not execute old commands or treat historical dev SHAs or PASS labels as current Hadanion evidence. Git history also retains every change.
 
+## Local agent execution queue — do the first safe ticket, not all P0s at once
+
+Read the [local chatbot execution contract](README.md#local-chatbot-execution-contract-2026-10-09) **before** modifying source. Tickets below order the existing P0 work; they do not authorize new behavior or close any physical acceptance gate. Keep only one `IN_PROGRESS` ticket per dependent path. Prior blocked work may coexist with unrelated offline tasks.
+
+| Ticket | Prerequisite | Deterministic local action | Completion receipt / stop |
+| --- | --- | --- | --- |
+| **VIS-00 — PRE-0** | Confirm Hadanion `main` and Hadalis `dev` roots, exact SHAs | Inspect current package/sources; run `make test HADALIS_ROOT=/absolute/path/to/Hadalis`, and relevant offline contract tests. Do not reset user working trees | Log commands, exit, PASS/FAIL/SKIP and test report. Treat any required FAIL/SKIP as not qualified |
+| **VIS-01 — G0 diagnosis** | Real owned Wayland GPU/QSB/Quickshell; clean pinned source | In a fresh output dir, run `python3 scripts/wull-shader-ab-sequence.py --output "$HOME/.local/state/hadanion/shader-ab/$(date +%Y%m%d-%H%M%S)" --graphics opengl --diagnostics`; examine A/A first | `sequence.json` + `aa/result.json` with source/QSB SHAs and capture variance; if inconclusive **STOP G0**, do not run candidate production or weaken RGBA tests |
+| **VIS-02 — event bridge contract** | VIS-00 source inventory; no real sensors required | Define disabled-by-default, owned, versioned semantic host event schema and synthetic lifecycle/focus/priority tests; compare existing `WullPresence` / `WullCuriosity` contracts before adding code | Accepted fixtures, exact changed files and focused PASS. **Live event monitor/agent hook = BLOCKED_APPROVAL** |
+| **VIS-03 — G1 measurements** | Observably verified process PID/state; permission for local desktop inspection | Read-only `wull-g1-resource-sample.py` with real PID and host path; ≥3 independent samples per state, matched protocol; use `wull-g1-compare.py` | Actual CPU/PSS evidence separate from GPU. GPU/frame p95/p99 and VRAM remain `NOT_MEASURED` until physical profiler supplied. If state uncertain: `BLOCKED_LOCAL` |
+| **VIS-04 — 3D laptop** | VIS-02 contract approved; original Blender assets/source authoring | Design intro/loop/outro and four-rim interaction for **both Aqua & Octo** without changing renderer baseline; test interruptions and visible footprint | Preview/original source assets + local Niri, input/GPU evidence. No placeholders counted as implementation; may need user visual approval |
+| **VIS-05 — shader E1** | **Both VIS-01 qualified and VIS-03 GPU baseline qualified** | Run isolated candidate against exact pixel and AB/BA performance controls, one shader experiment at a time | Approve only with qualified visual parity and measured resource improvement; otherwise keep original production code |
+
+**Source-only tasks available now without user hardware:** VIS-00 dependency/validator audit and VIS-02 *synthetic contract*; isolated test fixtures. **User-local tasks:** VIS-01 and VIS-03 need genuine environment; VIS-04 requires asset/visual acceptance; VIS-05 blocked by G0+G1. Every ticket report must give `status, Hadanion_sha, Hadalis_sha, commands, exit_codes, changed_paths, evidence_paths, blockers, next_ticket` (no guessed metrics).
+
 ## Current production baseline (preserve)
 
 - One optional Aqua/Octo 3D actor using Qt Quick/ShaderEffect, authored Blender motion curves (**30 each**), Aqua transparency/refraction, Octo four tentacles and 16 suction cups, Abyss theme, four-rim/registered-surface movement, touch/contact/reflection, face, gaze and animations.
