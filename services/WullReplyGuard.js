@@ -5,8 +5,8 @@
 // Original Hadanion code; no Mak1zu implementation imported.
 var expressions = ["idle", "happy", "excited", "thinking", "working",
                    "surprised", "sleepy", "sad", "alert"]
-var internalTag = /<\/?\s*(think(?:ing)?|tool_call|tool_result|function_call|system|assistant)\b/i
-var protocolToken = /<\|(?:im_start|im_end|assistant|system|tool)[^>]*\|>|\[\s*\/?\s*INST\s*\]/i
+var internalTag = /<\/?\s*(think(?:ing)?|analysis|tool(?:_call|_result)?|function_call|system|assistant|developer)\b/i
+var protocolToken = /<[|｜]|\[\s*\/?\s*INST\s*\]|<<\s*\/?\s*SYS\s*>>|<\/?\s*(start_of_turn|end_of_turn|bos|eos)\s*>/i
 var controlBytes = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g
 
 function normalizeText(text, expression) {

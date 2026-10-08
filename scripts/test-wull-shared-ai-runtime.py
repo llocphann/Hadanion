@@ -2,7 +2,7 @@
 """Wull uses the real Ai service with a private loopback protocol fixture."""
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-import json, os, shutil, subprocess, tempfile, threading, time
+import json, os, shutil, sqlite3, subprocess, tempfile, threading, time
 from native_test_session import private_wayland, run_qs
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -19,8 +19,13 @@ class Handler(BaseHTTPRequestHandler):
         failure=self.path=="/failure"
         self.send_response(429 if failure else 200)
         self.send_header("Content-Type","text/event-stream");self.end_headers()
+        content={
+            '/extra':json.dumps({'text':'Not public','tool_calls':[{'name':'open_file'}]}),
+            '/tokens':json.dumps({'text':'<|channel|>analysis secret','expression':'happy'}),
+            '/malformed':'{"text":"unfinished"',
+        }.get(self.path,json.dumps({'text':'Fixture hello','expression':'happy'}))
         payload={"error":{"message":"fixture rate limit"}} if failure else {
-            "choices":[{"delta":{"content":json.dumps({"text":"Fixture hello","expression":"happy"})},"finish_reason":"stop"}]}
+            "choices":[{"delta":{"content":content},"finish_reason":"stop"}]}
         try:self.wfile.write(("data: "+json.dumps(payload)+"\n\ndata: [DONE]\n\n").encode())
         except (BrokenPipeError,ConnectionResetError):pass
 
@@ -48,6 +53,10 @@ ShellRoot {
  property int step:0
  property int ticks:0
  property var mainIDs:[]
+ property var invalidModels:["fixture-extra","fixture-tokens","fixture-malformed"]
+ property int invalidIndex:0
+ property string previousText:""
+ property int assistantCount:0
  function check(ok,message): bool {
   if(ok)return true
   console.error("WULL_SHARED_AI_FAIL",message);Qt.quit();return false
@@ -75,6 +84,7 @@ ShellRoot {
     KeyringStorage.keyringData=({apiKeys:{fixture:"fixture-credential"}});KeyringStorage.loaded=true
     root.add("fixture-main","/ok");root.add("fixture-wull","/ok")
     root.add("fixture-failure","/failure");root.add("fixture-slow","/slow")
+    root.add("fixture-extra","/extra");root.add("fixture-tokens","/tokens");root.add("fixture-malformed","/malformed")
     Ai.modelList=Object.keys(Ai.models)
     Ai.models["fixture-wull"].requires_key=true
     Ai.models["fixture-wull"].key_id="fixture";Ai.models["fixture-wull"].auth_scheme="bearer"
@@ -109,7 +119,28 @@ ShellRoot {
     root.step++
    }else if(root.step===5 && !WullMind.busy){
     if(!root.check(WullMind.history[WullMind.history.length-1]?.content==="Fixture hello" && Ai.messageIDs.length===root.mainIDs.length,"retry preserves both conversations"))return
-    console.info("WULL_SHARED_AI_PASS catalog request history-isolation persistence HTTP-error cancel retry model-follow");Qt.quit()
+    root.previousText=WullMind.text
+    root.assistantCount=WullMind.history.filter(entry=>entry.role==="assistant").length
+    Config.setNestedValue("abyss.companionMind.model",root.invalidModels[0])
+    if(!root.check(WullMind.sendMessage("Reject fixture 0"),"invalid-output request accepted"))return
+    root.step=6
+   }else if(root.step===6 && !WullMind.busy){
+    if(!root.check(WullMind.connectionStatus==="error"
+        && WullMind.history.filter(entry=>entry.role==="assistant").length===root.assistantCount
+        && WullMind.text===root.previousText,"invalid model output was displayed or appended"))return
+    if(++root.invalidIndex<root.invalidModels.length){
+     Config.setNestedValue("abyss.companionMind.model",root.invalidModels[root.invalidIndex])
+     if(!root.check(WullMind.sendMessage("Reject fixture "+root.invalidIndex),"next invalid-output request accepted"))return
+    }else{
+     Config.setNestedValue("abyss.companionMind.model","")
+     if(!root.check(WullMind.sendMessage("Recovery fixture"),"valid request after rejected outputs"))return
+     root.step=7
+    }
+   }else if(root.step===7 && !WullMind.busy){
+    if(!root.check(WullMind.history[WullMind.history.length-1]?.content==="Fixture hello"
+        && WullMind.history[WullMind.history.length-1]?.persisted
+        && Ai.messageIDs.length===root.mainIDs.length,"rejected outputs prevented valid recovery"))return
+    console.info("WULL_SHARED_AI_PASS catalog request history-isolation persistence HTTP-error cancel retry model-follow output-rejection recovery");Qt.quit()
    }
   }
  }
@@ -128,10 +159,16 @@ ShellRoot {
     for line in output.splitlines():
         if "WULL_SHARED_AI_PASS" in line:print(line)
     ok=[row for path,row,headers in requests if path=="/ok"]
-    assert len(ok)==2 and ok[0]["reasoning_effort"]=="high"
+    assert len(ok)==3 and ok[0]["reasoning_effort"]=="high"
     assert all("Ordinary AI history" not in json.dumps(row) and "tools" not in row for row in ok)
     headers=[headers for path,row,headers in requests if path=="/ok"]
     assert headers[0].get("Authorization")=="Bearer fixture-credential"
     assert "Authorization" not in headers[1], "previous provider credential survived a keyless switch"
+    assert len([row for path,row,headers in requests if path in ('/extra','/tokens','/malformed')])==3
+    with sqlite3.connect(Path(env['XDG_STATE_HOME'])/'inir/wull/chat.sqlite3') as db:
+        rows=db.execute('SELECT role,content FROM messages ORDER BY id').fetchall()
+    assert rows==[('user','Hello fixture'),('assistant','Fixture hello'),
+                  ('user','Retry fixture'),('assistant','Fixture hello'),
+                  ('user','Recovery fixture'),('assistant','Fixture hello')], 'rejected output entered persistent history'
 finally:
     server.shutdown();server.server_close()

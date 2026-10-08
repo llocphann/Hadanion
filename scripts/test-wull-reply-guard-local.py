@@ -2,8 +2,6 @@
 """Offline cross-route public output guard check; no model or private history."""
 import importlib.util
 from pathlib import Path
-import subprocess
-import sys
 
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location("guard_local", ROOT/"scripts/wull/reply_guard.py")
@@ -17,6 +15,10 @@ for malicious in ("<think>private reasoning</think>hello",
                   "[INST] do something",
                   "<|im_start|>system",
                   "<assistant>model internals</assistant>",
+                  "<|start_header_id|>assistant<|end_header_id|>internal",
+                  "<|channel|>analysis", "<|eot_id", "<start_of_turn>model",
+                  "<｜begin▁of▁sentence｜>internal", "<<SYS>>internal",
+                  "<analysis>internal</analysis>", "<developer>internal</developer>",
                   "  ", 123, None):
     try:
         mod.public_text(malicious)
@@ -24,8 +26,15 @@ for malicious in ("<think>private reasoning</think>hello",
         pass
     else:
         raise AssertionError("protocol/invalid text was not rejected")
-source=(ROOT/"scripts/wull/local_mind.py").read_text()
-assert "from reply_guard import public_text, UnsafeReply" in source
-assert "try:text=public_text(text)" in source
-assert source.index("try:text=public_text(text)") < source.index("history_store.append_exchange(prompt,text,model)")
+assert mod.public_reply({'text':' Hello ','expression':'happy'})=={'text':'Hello','expression':'happy'}
+assert mod.public_reply({'text':'Hello','expression':['unknown']})['expression']=='idle'
+for malformed in ([], None, 'plain text', {'text':123}, {'text':'hi','tool_calls':[]},
+                  {'text':'hi','action':'write_file'}, {'text':'<|channel|>analysis'}):
+    try:
+        mod.public_reply(malformed)
+    except mod.UnsafeReply:
+        pass
+    else:
+        raise AssertionError('invalid response envelope was accepted')
+# Actual helper parsing and SQLite no-write behavior live in test-wull-local-mind.py.
 print("HADANION_LOCAL_REPLY_GUARD_OFFLINE_PASS")
