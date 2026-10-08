@@ -1,0 +1,31 @@
+name: Hadanion documentation governance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'README.md'
+      - 'docs/**'
+      - 'to-do/**'
+      - 'scripts/test-doc-governance.py'
+      - '.github/workflows/documentation-governance.yml'
+  pull_request:
+    paths:
+      - 'README.md'
+      - 'docs/**'
+      - 'to-do/**'
+      - 'scripts/test-doc-governance.py'
+      - '.github/workflows/documentation-governance.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  current-roadmaps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check canonical tasks, archive blobs and links
+        run: python3 scripts/test-doc-governance.py
