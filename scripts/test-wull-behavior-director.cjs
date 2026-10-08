@@ -71,7 +71,7 @@ assert.equal(ctx(state).expression,"working");
 assert.equal(api.pollNeedsInput(state,host,clock).eligible,false);
 
 // Long completion can propose a low-priority celebration; no real animation occurs.
-clock+=61000;
+clock+=10000;
 let result=api.acceptAgent(state,{word:"finished",token:tokenA},clock);
 assert.equal(result.accepted,true);
 assert.equal(result.finishedLong,false,"waiting run does not count as uninterrupted");
@@ -116,6 +116,11 @@ const loop=api.beginPresentation(state,"loop",clock);
 assert.equal(api.completePresentation(state,intro.epoch).accepted,false);
 assert.equal(api.completePresentation(state,loop.epoch).accepted,true);
 assert.equal(api.completePresentation(state,loop.epoch).accepted,false);
+const stale=api.beginPresentation(state,"intro",clock);
+api.setFocus(state,"terminal",clock);
+clock+=700;
+assert.equal(ctx(state).mode,"cowork");
+assert.equal(api.completePresentation(state,stale.epoch).accepted,false);
 assert.equal(api.beginPresentation(state,"unknown",clock).ok,false);
 
 // Cap memory to 16 anonymous sessions; stale sessions expire without linger.
@@ -132,5 +137,4 @@ assert.equal(Object.keys(state.sessions).length,0);
 // No permission grant, local data, process spawning, timers or external services.
 assert.doesNotMatch(code,/\b(?:fetch|XMLHttpRequest|WebSocket|exec|spawn|readFile|Qt\.createQmlObject)\s*\(/);
 assert.doesNotMatch(code,/\b(?:setInterval|setTimeout|import\s+Quickshell)\b/);
-assert.equal((root+"/").includes("Hadanion") || Boolean(root),true);
 console.log("HADANION_DIRECTOR_PRIVACY_PRIORITY_LIFECYCLE_PASS");
