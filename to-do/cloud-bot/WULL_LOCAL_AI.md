@@ -1,5 +1,7 @@
 > Repository extraction (2026-10-08): implementation and active Companion work now belong to Hadanion. The following milestones were imported from Hadalis `b3e05cb4e59cd266a78057fbe4ae95ca679f316f`; historical paths and validation receipts refer to that repository. See [current host API and extraction](../../docs/HADALIS_EXTRACTION.md).
 
+> **CURRENT OWNER / EDIT TARGET:** `llocphann/Hadanion` branch `main`, **not** Hadalis `dev`. This file is the canonical active Hadanion local-AI/product TODO; inherited lines below that name `llocphann/Hadalis`, `dev`, or historical source SHAs are **pre-extraction snapshots** only and must not direct new work. Hadanion owns Companion behavior/UI/runtime and accepts future plan updates here; Hadalis owns shared AI transport/catalog/supervisor and the optional host adapter. Validate Hadanion with `make test HADALIS_ROOT=/path/to/Hadalis` plus impacted Hadalis host contracts. Do not write to Hadalis `stable`.
+
 # Wull Local AI / Desktop Agent — Canonical TODO
 
 > **Single source of truth for Wull local-AI work.** All future planning, status updates, architecture/model/runtime decisions, benchmark summaries, fine-tuning/distillation notes, rollout state, and acceptance evidence for this effort MUST be edited into this file only. Do not create another Wull-AI TODO/task-board/handoff document.
