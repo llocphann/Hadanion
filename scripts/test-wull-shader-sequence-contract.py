@@ -71,5 +71,28 @@ with TemporaryDirectory(prefix="hadanion-sequence-offline-") as tmp:
             raise AssertionError("dirty checkout must fail")
     assert not forbidden.exists()
     assert seq.stage_result(base / "nonexistent")["status"] == "MISSING_RECEIPT"
+    # A/A mismatch report is summarized in one privacy-bounded uploadable receipt.
+    source = base / "synthetic-AA"
+    source.mkdir()
+    (source / "result.json").write_text(json.dumps({
+        "status": "INCONCLUSIVE_SELF_CONTROL",
+        "comparison": [
+            {"name": "aqua_idle", "changed_pixels": 7,
+             "alpha_changed_pixels": 2, "max_channel_delta": 3,
+             "difference_bbox": [1, 2, 4, 5], "baseline_repeat_changed_pixels": 0,
+             "candidate_repeat_changed_pixels": 0},
+            {"name": "aqua_faceplant", "changed_pixels": 2,
+             "alpha_changed_pixels": 1, "max_channel_delta": 2,
+             "difference_bbox": [2, 3, 4, 6], "baseline_repeat_changed_pixels": 1,
+             "candidate_repeat_changed_pixels": 4},
+        ],
+    }), encoding="utf-8")
+    result = seq.stage_result(source)
+    assert result["status"] == "INCONCLUSIVE_SELF_CONTROL"
+    assert result["diagnostics"]["cross_changed_pixels"] == 9
+    assert result["diagnostics"]["baseline_repeat_changed_pixels"] == 1
+    assert result["diagnostics"]["candidate_repeat_changed_pixels"] == 4
+    assert result["diagnostics"]["worst_cases"][0]["name"] == "aqua_faceplant"
+
 
 print("HADANION_SHADER_SEQUENCE_OFFLINE_CONTRACT_PASS")
