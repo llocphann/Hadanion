@@ -89,8 +89,9 @@ Window {
                     mouseClick(board,b.x+b.width/2,b.y+b.height/2);wait(60)
                     check(WullMind.conversationOpen && !WullMind.contextOpen,"chat action missed on "+edge)
                     WullMind.dismiss();mouseMove(actor,actor.width/2,actor.height/2);wait(60)
-                    mouseMove(board,10,10);wait(60)
+                    check(actions.visible,"orbit hidden before its visual capture on "+edge)
                     root.capture(edge);tryCompare(root,"captured",true,3000)
+                    mouseMove(board,10,10);wait(60)
                 }
                 const obsidian=findChild(actions.obsidianTarget,"wullObsidianGlyph"),ai=findChild(actions.aiTarget,"wullAiGlyph")
                 let previous=String(obsidian.color)
