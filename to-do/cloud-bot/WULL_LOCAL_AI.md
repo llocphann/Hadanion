@@ -4,6 +4,21 @@
 
 **Single current direction:** Hadanion is a lightweight native Companion **using Hadalis's existing AI**, not a replacement Go engine, a second permanent model daemon, an installed Discord bot, an autonomous unrestricted desktop agent or an always-running local model. This follows [Mochi × Mak1zu × Hadalis synthesis](../../docs/HADANION_COMPANION_SYNTHESIS_20261009.md) and [host API](../../docs/HADALIS_EXTRACTION.md). **Archive:** the former 1,816-line imported Hadalis model/router/benchmark plan, with stale P0.5–P10 phases, pre-extraction SHAs and unverified topology proposals, is preserved [verbatim](../archive/WULL_LOCAL_AI_PRE_CLEANUP_20261009.md); **retired as an execution roadmap**. Old artifact model hashes and test receipts are research-only and cannot qualify an installed Hadanion build.
 
+## Local agent execution queue — safe, sequential AI work
+
+The [local chatbot execution contract](README.md#local-chatbot-execution-contract-2026-10-09) is mandatory. This queue selects from the P0/P1 work below, not a third roadmap. Verify runtime/owner and pre-existing behavior before making changes.
+
+| Ticket | Prerequisite | Agent action | Evidence / stop condition |
+| --- | --- | --- | --- |
+| **AI-00 — baseline** | Clean Hadanion `main` + pinned Hadalis `dev` | Inspect imports/optional package; run `make test HADALIS_ROOT=/absolute/path/to/Hadalis` and affected Hadalis host validator where relevant | Record exact SHA, test exit and PASS/FAIL/SKIP; **no deployment** before required tests qualify |
+| **AI-01 — output safety** | AI-00 source mapping; no model needed | Audit shared QML, GGUF helper, history persistence, check-in and errors; add malformed JSON/protocol sentinel fixtures; run `node scripts/test-wull-reply-guard.cjs` and `python3 scripts/test-wull-reply-guard-local.py` | Demonstrate bounded output without pretending regex guards authorize tools. Any unguarded persisted model output = `FAILED_EVIDENCE` |
+| **AI-02 — provider privacy** | Hadalis owner/provider protocol documented | Verify local-only policy and provider selection using synthetic test transports, disabled/offline mode and explicit capability boundaries; stage minimal Hadalis `dev` fixes only if affected host owner and tests are identified | Test receipt proving no silent cloud fallback; **do not** access private requests or install/discover a remote model without permission |
+| **AI-03 — character quality** | Explicitly chosen, permitted model and no private inputs | Reuse [14 synthetic paired scenarios](../../scripts/fixtures/hadanion-voice-scenarios.json) for both Aqua and Octo; run the evaluator against consent-cleared outputs; human-review EN/VN/style | Aggregate report, pinned model/config and results; source-only fixture pass is **not** real persona qualification. Block if no model/privacy consent |
+| **AI-04 — memory and proactive UX** | Explicit product/privacy approval required | Prepare synthetic DB migration/delete/expiry/consent and fake-clock tests, UI mock proposal; leave prototypes **dormant** | No auto-memory extraction, stored user facts, new notification or background inference until consent flows tested and approved |
+| **AI-05 — typed desktop tools** | Separate capability scope and approval | Design allowlisted read-only fixtures and action receipts. Defer mutations, RAG/router/training until independently justified by evidence | **BLOCKED_APPROVAL** by default; never execute arbitrary LLM-returned code or broaden file read scope |
+
+**Executable now offline:** AI-00 (when both repos accessible) and AI-01; synthetic AI-02/AI-04 contract design. **Requires local model/approval:** AI-03; memory/proactive rollout; any write-capable agent action. On a blocked gate, report the precise missing permission/evidence and take another independent READY ticket, never silently skip acceptance.
+
 ## Current implemented source (do not rebuild)
 
 - **Chat + model reuse:** `services/WullMind.qml` uses `Ai.createTextSession`, Hadalis's AI model catalog and the existing optional local GGUF/Ollama helper. Explicit chat and Mood/Energy check-ins have existing separate UI; history is bounded SQLite/WAL (max ~2,000 records, paged), not a long-term memory engine. Existing Companion config key `abyss.companionMind`, `wull` IPC and privacy/default-off behavior stay compatible.
