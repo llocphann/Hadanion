@@ -35,6 +35,7 @@ Window {
     width: 320; height: 320; visible: true; color: "transparent"
     property int currentIndex: 0
     property bool candidateTurn: false
+    property int repeatPass: 0 // same shader, second independent grab
     property int readyTicks: 0
     property int framesSinceSwitch: 0
     property bool pending: false
@@ -98,20 +99,27 @@ Window {
             if (++root.readyTicks < 4) return
             root.pending = true
             const tag = root.candidateTurn ? "candidate" : "baseline"
+            const suffix = root.repeatPass === 1 ? "-repeat" : ""
+            const capturedIndex = root.currentIndex
             active.grabToImage(function(result) {
-                const path = Quickshell.env("HADANION_SHADER_AB_OUT") + "/" + tag + "-" + root.currentIndex + ".png"
+                const path = Quickshell.env("HADANION_SHADER_AB_OUT") + "/" + tag + "-" + capturedIndex + suffix + ".png"
                 if (!result.saveToFile(path)) {
                     console.log("HADANION_SHADER_AB_ERROR:save_failed")
                     Qt.exit(4); return
                 }
                 root.readyTicks = 0; root.pending = false
-                if (!root.candidateTurn) root.candidateTurn = true
-                else {
-                    root.candidateTurn = false
-                    ++root.currentIndex
-                    if (root.currentIndex === root.cases.length) {
-                        console.log("HADANION_SHADER_AB_CAPTURE_OK:" + root.cases.length)
-                        Qt.quit()
+                if (root.repeatPass === 0) {
+                    root.repeatPass = 1 // re-render the same item without visibility switch
+                } else {
+                    root.repeatPass = 0
+                    if (!root.candidateTurn) root.candidateTurn = true
+                    else {
+                        ++root.currentIndex
+                        if (root.currentIndex === root.cases.length) {
+                            console.log("HADANION_SHADER_AB_CAPTURE_OK:" + root.cases.length)
+                            Qt.quit(); return
+                        }
+                        root.candidateTurn = false
                     }
                 }
             }, Qt.size(304, 304))
@@ -178,22 +186,50 @@ def negative_variant(src):
     return src.replace(NEGATIVE_TARGET, NEGATIVE_REPLACEMENT)
 
 
+def rgba_difference(before, after):
+    """Exact RGBA bytes, including color values in transparent pixels."""
+    if before.size != tuple(CAPTURE_SIZE) or after.size != tuple(CAPTURE_SIZE):
+        raise RuntimeError('unexpected_png_dimensions')
+    raw_a, raw_b = before.tobytes(), after.tobytes()
+    delta = bytes(abs(x - y) for x, y in zip(raw_a, raw_b))
+    differing = [index for index in range(0, len(delta), 4)
+                 if delta[index] or delta[index + 1] or delta[index + 2] or delta[index + 3]]
+    xs = [index // 4 % CAPTURE_SIZE[0] for index in differing]
+    ys = [index // 4 // CAPTURE_SIZE[0] for index in differing]
+    return dict(changed_pixels=len(differing),
+                alpha_changed_pixels=sum(delta[index + 3] != 0 for index in range(0, len(delta), 4)),
+                max_channel_delta=max(delta, default=0),
+                difference_bbox=([min(xs), min(ys), max(xs) + 1, max(ys) + 1] if differing else None))
+
+
 def compare_pngs(output, samples):
-    from PIL import Image, ImageChops
+    from PIL import Image
     results = []
     for index, sample in enumerate(samples):
-        before = Image.open(output / ('baseline-%d.png' % index)).convert('RGBA')
-        after = Image.open(output / ('candidate-%d.png' % index)).convert('RGBA')
-        if before.size != tuple(CAPTURE_SIZE) or after.size != tuple(CAPTURE_SIZE):
-            raise RuntimeError('unexpected_png_dimensions')
+        images = {}
+        for label in ('baseline', 'baseline-repeat', 'candidate', 'candidate-repeat'):
+            with Image.open(output / ('%s-%d.png' % (label, index))) as file:
+                images[label] = file.convert('RGBA')
+        before, after = images['baseline'], images['candidate']
         if before.getchannel('A').getextrema()[1] == 0:
             raise RuntimeError('empty_alpha_baseline_capture:' + sample['name'])
-        difference = ImageChops.difference(before, after)
-        changed = sum(1 for rgba in difference.getdata() if any(rgba))
-        results.append(dict(name=sample['name'], changed_pixels=changed,
+        if after.getchannel('A').getextrema()[1] == 0:
+            raise RuntimeError('empty_alpha_candidate_capture:' + sample['name'])
+        b_repeat = rgba_difference(before, images['baseline-repeat'])
+        c_repeat = rgba_difference(after, images['candidate-repeat'])
+        cross = rgba_difference(before, after)
+        results.append(dict(name=sample['name'],
+                            **cross,
+                            baseline_repeat_changed_pixels=b_repeat['changed_pixels'],
+                            candidate_repeat_changed_pixels=c_repeat['changed_pixels'],
+                            baseline_repeat_max_channel_delta=b_repeat['max_channel_delta'],
+                            candidate_repeat_max_channel_delta=c_repeat['max_channel_delta'],
+                            baseline_repeat_bbox=b_repeat['difference_bbox'],
+                            candidate_repeat_bbox=c_repeat['difference_bbox'],
                             baseline_rgba_sha256=digest(before.tobytes()),
+                            baseline_repeat_rgba_sha256=digest(images['baseline-repeat'].tobytes()),
                             candidate_rgba_sha256=digest(after.tobytes()),
-                            max_channel_delta=max(x[1] for x in difference.getextrema())))
+                            candidate_repeat_rgba_sha256=digest(images['candidate-repeat'].tobytes())))
     baselines = {r['name']: r['baseline_rgba_sha256'] for r in results}
     for name in ('aqua_faceplant', 'octo_head', 'aqua_theme_shift'):
         if baselines[name] == baselines['aqua_idle']:
@@ -202,6 +238,12 @@ def compare_pngs(output, samples):
 
 
 def classify(mode, results):
+    if not results or any('baseline_repeat_changed_pixels' not in x or
+                          'candidate_repeat_changed_pixels' not in x for x in results):
+        return ('INCONCLUSIVE_CAPTURE_DIAGNOSTICS_MISSING', 2)
+    if any(x['baseline_repeat_changed_pixels'] > 0 or
+           x['candidate_repeat_changed_pixels'] > 0 for x in results):
+        return ('INCONCLUSIVE_CAPTURE_VARIANCE', 2)
     differences = sum(x['changed_pixels'] for x in results)
     if mode == 'self':
         return ('PASS_SAME_SOURCE' if differences == 0 else 'INCONCLUSIVE_SELF_CONTROL', 0 if differences == 0 else 2)
@@ -219,12 +261,15 @@ def qualified_control(report, baseline_sha, baseline_qsb, qsb_version, graphics)
     comparisons = report.get('comparison', [])
     return (report.get('status') == 'PASS_SAME_SOURCE'
             and report.get('mode') == 'self'
-            and report.get('schema') == 2
+            and report.get('schema') == 3
             and report.get('candidate_source_sha256') == baseline_sha
             and report.get('candidate_qsb_sha256') == baseline_qsb
             and report.get('contract_sha256') == capture_contract_sha()
             and len(comparisons) == len(cases())
-            and all(x.get('changed_pixels') == 0 for x in comparisons)
+            and all(x.get('changed_pixels') == 0
+                    and x.get('baseline_repeat_changed_pixels') == 0
+                    and x.get('candidate_repeat_changed_pixels') == 0
+                    for x in comparisons)
             and report.get('baseline_source_sha256') == baseline_sha
             and report.get('baseline_qsb_sha256') == baseline_qsb
             and report.get('qsb_version') == qsb_version
@@ -276,7 +321,7 @@ def main():
                     qt_qpa_platform='wayland', qsb_flags=selected_flags)
     started = time.monotonic()
     output.mkdir(mode=0o700, parents=True)
-    report = dict(mode=args.mode, schema=2, status='INCONCLUSIVE', contract_sha256=capture_contract_sha(),
+    report = dict(mode=args.mode, schema=3, status='INCONCLUSIVE', contract_sha256=capture_contract_sha(),
                   baseline_source_sha256=digest(bsrc), candidate_source_sha256=digest(csrc),
                   qsb_version=qsb_version, qsb_binary=qsb, graphics=graphics, cases=len(cases()),
                   result_scope='ShaderEffect pixel captures only; no whole-shell GPU time or FPS',
@@ -308,11 +353,14 @@ def main():
                 expected_negative_sha = digest(negative_variant(bsrc.decode('utf-8')).encode('utf-8'))
                 if (neg.get('status') != 'PASS_DIFFERENCE_DETECTED'
                         or neg.get('mode') != 'negative'
-                        or neg.get('schema') != 2
+                        or neg.get('schema') != 3
                         or neg.get('contract_sha256') != capture_contract_sha()
                         or neg.get('candidate_source_sha256') != expected_negative_sha
                         or len(neg.get('comparison', [])) != len(cases())
                         or not any(x.get('changed_pixels', 0) > 0 for x in neg.get('comparison', []))
+                        or not all(x.get('baseline_repeat_changed_pixels') == 0
+                                   and x.get('candidate_repeat_changed_pixels') == 0
+                                   for x in neg.get('comparison', []))
                         or neg.get('baseline_source_sha256') != report['baseline_source_sha256']
                         or neg.get('baseline_qsb_sha256') != report['baseline_qsb_sha256']
                         or neg.get('qsb_version') != qsb_version
