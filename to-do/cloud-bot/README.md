@@ -1,6 +1,10 @@
-# Companion work
+# Hadanion Companion — canonical work
 
-- [Design and animation](ABYSS_WATER_DROPLET_COMPANION.md)
-- [Local AI](WULL_LOCAL_AI.md)
+| Active owner | Current checklist |
+| --- | --- |
+| Native Aqua/Octo visuals, event arbitration, Blender clips, G0/G1 | [Visual & Behavior TODO](ABYSS_WATER_DROPLET_COMPANION.md) |
+| AI routes, output safety, model benchmarking, user-consented memory and tools | [Local AI TODO](WULL_LOCAL_AI.md) |
 
-The imported plans contain historical milestones from Hadalis. Current source and the extraction validation record take precedence over older paths and exact-SHA results. Remaining product work continues here after repository separation.
+**Decision source:** [Hadanion synthesis](../../docs/HADANION_COMPANION_SYNTHESIS_20261009.md). **Technical runbooks:** [docs index](../../docs/README.md). **Old timelines:** [archived/imported work logs](../archive/README.md) (frozen, non-executable).
+
+All new implementation status belongs in the relevant active TODO with exact-source CI/local evidence. Historical source SHAs are provenance, not a release test. Do not recreate the old 3,059-line visual timeline or the pre-extraction P0.5–P10 AI plan. Hadalis's optional host and generic AI remain owned by Hadalis `dev`; stable is never modified.
