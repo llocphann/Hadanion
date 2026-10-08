@@ -105,10 +105,12 @@ jobs:
               baseline.write_bytes(shader.read_bytes())
               negative.write_text(ab.negative_variant(shader.read_text()), encoding="utf-8")
               subprocess.run(["python3", "scripts/build-wull-material-candidate.py", str(candidate)], check=True)
+              flags = ab.qsb_flags(os.environ["QSB"])
+              print("QSB_SMOKE_FLAGS", flags)
               hashes = {}
               for name, src in (("baseline", baseline), ("negative", negative), ("candidate", candidate)):
                   qsb = wd / (name + ".frag.qsb")
-                  subprocess.run([os.environ["QSB"], "--qt6", "-o", str(qsb), str(src)], check=True)
+                  subprocess.run([os.environ["QSB"], *flags, "-o", str(qsb), str(src)], check=True)
                   data = qsb.read_bytes()
                   assert data
                   dump = subprocess.check_output([os.environ["QSB"], "-d", str(qsb)])
