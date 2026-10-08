@@ -81,7 +81,7 @@ with TemporaryDirectory(prefix="hadanion-sequence-offline-") as tmp:
              "alpha_changed_pixels": 2, "max_channel_delta": 3,
              "difference_bbox": [1, 2, 4, 5], "baseline_repeat_changed_pixels": 0,
              "candidate_repeat_changed_pixels": 0},
-            {"name": "aqua_faceplant", "changed_pixels": 2,
+            {"name": "aqua_faceplant", "changed_pixels": 3,
              "alpha_changed_pixels": 1, "max_channel_delta": 2,
              "difference_bbox": [2, 3, 4, 6], "baseline_repeat_changed_pixels": 1,
              "candidate_repeat_changed_pixels": 4},
@@ -89,7 +89,7 @@ with TemporaryDirectory(prefix="hadanion-sequence-offline-") as tmp:
     }), encoding="utf-8")
     result = seq.stage_result(source)
     assert result["status"] == "INCONCLUSIVE_SELF_CONTROL"
-    assert result["diagnostics"]["cross_changed_pixels"] == 9
+    assert result["diagnostics"]["cross_changed_pixels"] == 10
     assert result["diagnostics"]["baseline_repeat_changed_pixels"] == 1
     assert result["diagnostics"]["candidate_repeat_changed_pixels"] == 4
     assert result["diagnostics"]["worst_cases"][0]["name"] == "aqua_faceplant"
