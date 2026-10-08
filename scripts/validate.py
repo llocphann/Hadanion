@@ -88,7 +88,7 @@ def main():
             "test-companion-volume.py", "test-wull-shader-ab-contract.py",
             "test-wull-shader-sequence-contract.py", "test-wull-g1-resource-contract.py",
             "test-wull-g1-compare-contract.py", "test-wull-companion-voice-eval.py", "test-wull-reply-guard-local.py",
-            "test-wull-memory-store.py", "test-wull-companion-settings.py", "test-wull-mind-ui.py",
+            "test-wull-memory-store.py", "test-wull-local-persona.py", "test-wull-companion-settings.py", "test-wull-mind-ui.py",
             "test-wull-immersion-runtime.py", "test-wull-cloud-orbit.py")]
         qml_parser = "/usr/lib/qt6/bin/qmlformat" if Path("/usr/lib/qt6/bin/qmlformat").is_file() else shutil.which("qmlformat")
         if not qml_parser:
