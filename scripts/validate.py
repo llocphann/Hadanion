@@ -88,24 +88,34 @@ def main():
         product_qml = list((ROOT / "modules").rglob("*.qml")) + list((ROOT / "services").rglob("*.qml")) + [ROOT / "HadalisSession.qml", ROOT / "HadalisOutput.qml"]
         checks += [[qml_parser, str(path)] for path in sorted(product_qml)]
         passed = failed = skipped = 0
-        for command in checks:
-            label = Path(command[1]).name if command[0] != "cargo" else "Rust behavior/protocol tests"
-            if args.only and label not in args.only:
-                continue
-            result = subprocess.run(command, cwd=work, env=environment, stdout=subprocess.PIPE,
-                                    stderr=subprocess.STDOUT, text=True, timeout=180)
-            skipped_check = result.returncode == 77 or result.stdout.lstrip().startswith("SKIP:")
-            print(("SKIP " if skipped_check else "PASS " if result.returncode == 0 else "FAIL ") + label, flush=True)
-            if skipped_check:
-                skipped += 1
-                continue
-            if result.returncode:
-                failed += 1
-                print(result.stdout[-12000:], flush=True)
-            else:
-                passed += 1
-                if command[0] != qml_parser:
-                    print(result.stdout[-1200:], flush=True)
+        native_spec = importlib.util.spec_from_file_location("native_session", work / "scripts/native_test_session.py")
+        native_session = importlib.util.module_from_spec(native_spec)
+        native_spec.loader.exec_module(native_session)
+        session_root = work / "validation-session"
+        session_root.mkdir()
+        # All owned Qt windows share this private compositor rather than the
+        # user's pointer/focus or another concurrently running host validator.
+        with native_session.private_wayland(session_root) as native_environment:
+            if native_environment:
+                environment.update(native_environment)
+            for command in checks:
+                    label = Path(command[1]).name if command[0] != "cargo" else "Rust behavior/protocol tests"
+                    if args.only and label not in args.only:
+                        continue
+                    result = subprocess.run(command, cwd=work, env=environment, stdout=subprocess.PIPE,
+                                            stderr=subprocess.STDOUT, text=True, timeout=180)
+                    skipped_check = result.returncode == 77 or result.stdout.lstrip().startswith("SKIP:")
+                    print(("SKIP " if skipped_check else "PASS " if result.returncode == 0 else "FAIL ") + label, flush=True)
+                    if skipped_check:
+                        skipped += 1
+                        continue
+                    if result.returncode:
+                        failed += 1
+                        print(result.stdout[-12000:], flush=True)
+                    else:
+                        passed += 1
+                        if command[0] != qml_parser:
+                            print(result.stdout[-1200:], flush=True)
         print(f"Hadanion checks: {passed} PASS / {failed} FAIL / {skipped} SKIP", flush=True)
         raise SystemExit(bool(failed))
 
