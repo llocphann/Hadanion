@@ -15,6 +15,8 @@ assert.equal(good.expression, "happy");
 assert.equal(context.parse("Hello there.").ok, true); // pre-existing free-text fallback
 assert.equal(context.parse("{\"text\":\"Hi\",\"expression\":\"unknown\"}").expression, "idle");
 assert.equal(context.parse("{\"text\":\"Hi\",\"expression\":\"happy\",\"tool_calls\":[]}").ok, false);
+assert.equal(context.parse('{"tool_calls": [').ok, false);
+assert.equal(context.parse('{"text": "incomplete"').ok, false);
 for (const token of [
     "<think>internal chain</think>hello",
     "<tool_result>private bytes</tool_result>",
