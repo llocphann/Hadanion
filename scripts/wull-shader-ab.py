@@ -192,6 +192,7 @@ def main():
     parser.add_argument('--negative-report', type=Path)
     parser.add_argument('--output', type=Path, required=True, help='new, private local directory, never overwritten')
     parser.add_argument('--graphics', choices=('opengl', 'vulkan'), default='opengl')
+    parser.add_argument('--diagnostics', action='store_true', help='capture Qt scenegraph logs separately; not a standalone GPU benchmark')
     args = parser.parse_args()
     if args.mode == 'compare' and (not args.candidate_source or not args.control_report or not args.negative_report):
         parser.error('compare requires --candidate-source, --control-report and --negative-report')
@@ -222,7 +223,8 @@ def main():
     report = dict(mode=args.mode, status='INCONCLUSIVE',
                   baseline_source_sha256=digest(bsrc), candidate_source_sha256=digest(csrc),
                   qsb_version=qsb_version, graphics=graphics, cases=len(cases()),
-                  result_scope='ShaderEffect pixel captures only; no whole-shell GPU time or FPS')
+                  result_scope='ShaderEffect pixel captures only; no whole-shell GPU time or FPS',
+                  diagnostics_enabled=args.diagnostics)
     try:
         with tempfile.TemporaryDirectory(prefix='hadanion-shader-ab-') as temporary:
             stage = Path(temporary)
@@ -265,6 +267,8 @@ def main():
             env.update(QT_QPA_PLATFORM='wayland', QSG_RHI_BACKEND=args.graphics,
                        QT_QUICK_BACKEND='rhi', HADANION_SHADER_AB_OUT=str(output),
                        QS_NO_RELOAD_POPUP='1')
+            if args.diagnostics:
+                env.update(QSG_RENDER_TIMING='1', QSG_RHI_PROFILE='1', QSG_RENDERER_DEBUG='render', QSG_INFO='1')
             with (output / 'capture.log').open('x', encoding='utf-8') as log:
                 process = subprocess.Popen(['dbus-run-session', '--', 'qs', '--path', str(stage / 'shell.qml')],
                                            cwd=stage, env=env, stdin=subprocess.DEVNULL,
@@ -283,6 +287,10 @@ def main():
                 raise RuntimeError('qml_capture_failed:exit=%d' % rc)
             if any(x in log_data for x in BAD_LOG):
                 raise RuntimeError('qml_shader_or_binding_error')
+            if digest(baseline_source.read_bytes()) != report['baseline_source_sha256']:
+                raise RuntimeError('baseline_source_changed_during_capture')
+            if args.mode == 'compare' and digest(args.candidate_source.resolve().read_bytes()) != report['candidate_source_sha256']:
+                raise RuntimeError('candidate_source_changed_during_capture')
             report['comparison'] = compare_pngs(output, cases())
             report['status'], exit_code = classify(args.mode, report['comparison'])
             report['elapsed_capture_wall_seconds_not_gpu_time'] = round(time.monotonic() - started, 3)
