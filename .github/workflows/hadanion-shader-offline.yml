@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'scripts/wull-shader-ab.py'
+      - 'scripts/wull-g1-resource-sample.py'
+      - 'scripts/test-wull-g1-resource-contract.py'
       - 'scripts/wull-shader-ab-sequence.py'
       - 'scripts/test-wull-shader-ab-contract.py'
       - 'scripts/test-wull-shader-sequence-contract.py'
@@ -16,6 +18,8 @@ on:
   pull_request:
     paths:
       - 'scripts/wull-shader-ab.py'
+      - 'scripts/wull-g1-resource-sample.py'
+      - 'scripts/test-wull-g1-resource-contract.py'
       - 'scripts/wull-shader-ab-sequence.py'
       - 'scripts/test-wull-shader-ab-contract.py'
       - 'scripts/test-wull-shader-sequence-contract.py'
@@ -41,6 +45,8 @@ jobs:
           from pathlib import Path
           for path in [
               'scripts/wull-shader-ab.py',
+              'scripts/wull-g1-resource-sample.py',
+              'scripts/test-wull-g1-resource-contract.py',
               'scripts/wull-shader-ab-sequence.py',
               'scripts/test-wull-shader-ab-contract.py',
               'scripts/test-wull-shader-sequence-contract.py',
@@ -53,6 +59,7 @@ jobs:
         run: |
           python3 scripts/test-wull-shader-ab-contract.py
           python3 scripts/test-wull-shader-sequence-contract.py
+          python3 scripts/test-wull-g1-resource-contract.py
       - name: Check immutable candidate build and exact source
         run: |
           python3 - <<'PY'
