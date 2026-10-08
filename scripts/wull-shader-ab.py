@@ -181,6 +181,13 @@ def cases():
     return samples
 
 
+def capture_timeout():
+    # Owned nested compositors can pace static-item grabs at about one second.
+    # Predeclare a bounded budget for every warm-up + two measured images on
+    # both items; this is a capture deadline, never a performance threshold.
+    return max(75, len(cases()) * 2 * 3 * 2)
+
+
 def negative_variant(src):
     if src.count(NEGATIVE_TARGET) != 1:
         raise RuntimeError('negative_control_anchor_not_unique')
@@ -332,6 +339,7 @@ def main():
                   qsb_version=qsb_version, qsb_binary=qsb, graphics=graphics, cases=len(cases()),
                   result_scope='ShaderEffect pixel captures only; no whole-shell GPU time or FPS',
                   diagnostics_enabled=args.diagnostics,
+                  capture_deadline_seconds=capture_timeout(),
                   capture_schedule=dict(warmup_per_item=1, measured_per_item=2,
                                         warmup_retained=True, selection='fixed_before_measurement'))
     try:
@@ -394,7 +402,7 @@ def main():
                                            stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
                 try:
                     try:
-                        rc = process.wait(timeout=75)
+                        rc = process.wait(timeout=capture_timeout())
                     except subprocess.TimeoutExpired:
                         rc = 124
                 finally:

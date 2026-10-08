@@ -42,6 +42,9 @@ for character_variant in (0, 4):
     assert {state["tier"] for state in module.cases()
             if state["variant"] == character_variant} == {0, 1, 2}, "each character needs all selectable tiers"
 assert len({state["name"] for state in module.cases()}) == len(module.cases())
+assert module.capture_timeout() == 180
+with patch.object(module, 'cases', return_value=[{}]):
+    assert module.capture_timeout() == 75
 assert 'onFrameSwapped:' in module.QML and 'framesSinceSwitch < 1' in module.QML
 assert 'graphics_api_mismatch' in module.QML
 assert 'property int repeatPass: -1' in module.QML
