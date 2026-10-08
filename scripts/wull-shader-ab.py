@@ -167,6 +167,9 @@ def cases():
         ('limb', 1, 0, .35, .55, 0, 0),
         ('foot', 3, 0, 0, 0, 0, 0),
         ('aqua_low_detail', 0, 0, -.25, 0, 0, 0),
+        ('aqua_high_detail', 0, 2, .35, 0, 0, 0),
+        ('octo_low_detail', 4, 0, -.45, .7, 0, 0),
+        ('octo_high_detail', 4, 2, -.45, .7, 0, 0),
     ]
     samples = []
     for name, variant, tier, yaw, pitch, roll, tip in states:

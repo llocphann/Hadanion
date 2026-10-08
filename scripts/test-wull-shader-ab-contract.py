@@ -36,6 +36,10 @@ assert len(module.cases()) >= 10
 assert {"aqua_faceplant", "octo_head", "cornea", "foot", "aqua_theme_shift"} <= {
     state["name"] for state in module.cases()
 }
+for character_variant in (0, 4):
+    assert {state["tier"] for state in module.cases()
+            if state["variant"] == character_variant} == {0, 1, 2}, "each character needs all selectable tiers"
+assert len({state["name"] for state in module.cases()}) == len(module.cases())
 assert 'onFrameSwapped:' in module.QML and 'framesSinceSwitch < 1' in module.QML
 assert 'graphics_api_mismatch' in module.QML
 assert 'property int repeatPass: 0' in module.QML
