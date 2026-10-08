@@ -69,3 +69,52 @@ jobs:
               assert dst.read_bytes() == candidate
           print('CANDIDATE_SOURCE_ONLY_NO_OVERWRITE_PASS')
           PY
+
+  compile-shaders:
+    name: QSB bake portability smoke (not GPU acceptance)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt shader baker
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends qt6-shader-baker
+      - name: Independently bake baseline, bubble candidate and deliberately changed shader
+        run: |
+          set -euo pipefail
+          QSB="$(command -v qsb || true)"
+          if [ -z "$QSB" ]; then QSB=/usr/lib/qt6/bin/qsb; fi
+          test -x "$QSB"
+          "$QSB" --version
+          export QSB
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          import subprocess, tempfile, hashlib, os
+          root = Path.cwd()
+          shader = root / "modules/abyss/companion/WaterDropletMaterial.frag"
+          spec = importlib.util.spec_from_file_location("shader_ab", root / "scripts/wull-shader-ab.py")
+          ab = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(ab)
+          with tempfile.TemporaryDirectory(prefix="hadanion-qsb-") as tmp:
+              wd = Path(tmp)
+              baseline = wd / "baseline.frag"
+              negative = wd / "negative.frag"
+              candidate = wd / "candidate.frag"
+              baseline.write_bytes(shader.read_bytes())
+              negative.write_text(ab.negative_variant(shader.read_text()), encoding="utf-8")
+              subprocess.run(["python3", "scripts/build-wull-material-candidate.py", str(candidate)], check=True)
+              hashes = {}
+              for name, src in (("baseline", baseline), ("negative", negative), ("candidate", candidate)):
+                  qsb = wd / (name + ".frag.qsb")
+                  subprocess.run([os.environ["QSB"], "--qt6", "-o", str(qsb), str(src)], check=True)
+                  data = qsb.read_bytes()
+                  assert data
+                  dump = subprocess.check_output([os.environ["QSB"], "-d", str(qsb)])
+                  assert dump, name
+                  hashes[name] = hashlib.sha256(data).hexdigest()
+                  print("QSB_SMOKE_BAKED", name, "SHA256", hashes[name])
+              assert hashes["baseline"] != hashes["negative"]
+              print("QSB_SMOKE_PASS baseline/negative/bubble-candidate compiled independently")
+          PY
