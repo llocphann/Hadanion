@@ -79,6 +79,7 @@ function acceptAgent(s, input, nowMs) {
         if (word==="prompt_waiting") session.waiting=Math.min(session.waiting,nowMs-GRACE_MS)
     } else if (word==="activity") {
         if (!session) return {accepted:false,reason:"unknown_session"}
+        if (session.waiting>=0) session.started=nowMs // a wait is not active work
         session.seen=nowMs
         session.waiting=-1
         session.nudged=false
@@ -143,6 +144,7 @@ function transition(s,host,nowMs) {
     const proposed=snapshot(s,host,nowMs)
     if (proposed.mode!==s.lastMode || proposed.reason!==s.lastReason) {
         s.epoch++
+        s.pending=null // revoked performance; an old completion cannot re-enter
         s.lastMode=proposed.mode
         s.lastReason=proposed.reason
     }
