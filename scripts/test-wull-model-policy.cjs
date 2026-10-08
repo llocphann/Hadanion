@@ -8,7 +8,7 @@ for(const endpoint of ["http://localhost:11434/v1","http://127.0.0.1:8000/v1","h
 }
 for(const endpoint of ["https://example.com/v1","http://localhost.evil/v1","http://localhost@evil/v1", "http://user@localhost/v1",
                       "http://127.0.0.999/v1","http://127.0.0.1:0/v1","http://127.0.0.1:65536/v1","http://localhost\\@evil/v1",
-                      "http://192.168.1.2/v1","http://[::ffff:192.168.1.2]/v1","file:///tmp/a","http://%6cocalhost/v1"]) {
+                      "http://192.168.1.2/v1","http://[::ffff:192.168.1.2]/v1","file:///tmp/a","http://%6cocalhost/v1","http://127.00.0.08/v1"]) {
     assert.equal(policy.isLocal(model(endpoint)),false,endpoint);
 }
 assert.equal(policy.isLocal({...model("http://127.0.0.1"),local:false}),false);

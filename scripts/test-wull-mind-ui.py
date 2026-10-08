@@ -16,6 +16,8 @@ spec=importlib.util.spec_from_file_location('mind_test',ROOT/'scripts/test-wull-
 fixture=importlib.util.module_from_spec(spec);spec.loader.exec_module(fixture)
 class Handler(fixture.Handler):
     def do_POST(self):
+        if self.path=='/failure':
+            self.send_response(429);self.end_headers();return
         if self.path!='/v1/chat/completions':return super().do_POST()
         data=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
         if 'slow' in data['messages'][-1]['content']:time.sleep(.3)
