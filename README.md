@@ -39,6 +39,6 @@ make build
 make test HADALIS_ROOT=/path/to/Hadalis
 ```
 
-Validation uses an isolated host checkout and fake inference fixtures; it does not modify the live desktop or call a real LLM. See [migration and host API](docs/HADALIS_EXTRACTION.md), [original source inventory](docs/HADALIS_IMPORT.json), and [active work](to-do/cloud-bot/README.md). Historical Hadalis evidence remains source-pinned in Hadalis and is not a test result for this repository.
+Validation uses an isolated host checkout and fake inference fixtures; it does not modify the live desktop or call a real LLM. See the [documentation index](docs/README.md) for host API, extraction provenance, renderer runbooks and Mochi × Mak1zu × Hadalis decisions. **Only the [visual/behavior TODO](to-do/cloud-bot/ABYSS_WATER_DROPLET_COMPANION.md) and [AI TODO](to-do/cloud-bot/WULL_LOCAL_AI.md) are active**; [imported historical milestones](to-do/archive/README.md) and [retired research](docs/archive/README.md) are frozen archives, not current implementation instructions. Historical Hadalis evidence remains source-pinned and is not a test result for this repository.
 
 License: GPL-3.0-or-later; imported source attribution is retained.
