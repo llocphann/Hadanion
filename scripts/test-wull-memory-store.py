@@ -33,7 +33,7 @@ with TemporaryDirectory(prefix="hadanion-memory-sandbox-") as tmp:
         assert {x["text"] for x in a}=={"Tea is nice","Aqua joke"}
         assert {x["text"] for x in o}=={"Tea is nice","Octo joke"}
         assert all(x["source"]=="explicit_user" for x in a+o)
-        assert stat_mode := (dbfile.stat().st_mode & 0o777) == 0o600
+        assert (dbfile.stat().st_mode & 0o777) == 0o600
         assert (dbfile.parent.stat().st_mode & 0o777) == 0o700
         assert memory.forget_one(aqua)
         assert not memory.forget_one(aqua)
