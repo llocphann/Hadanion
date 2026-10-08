@@ -10,6 +10,8 @@ Source reviewed: Hadanion `main@bd5281d4f27a91c611e741d13225b76b3d7dc228`; Hadal
 
 Candidate order: (0) repair measurement / shader A/B oracle; (1) instrument baseline; (2) strict-lossless cost removal in existing shaders; (3) costly Octo paths when profiling warrants; (4) material-only approximation with explicitly approved visual budget if necessary; (5) multi-renderer hybrid **only after measured alternatives fail**. No user-visible quality reduction is allowed to masquerade as strict-lossless.
 
+**2026-10-09 policy update:** the pinned inventory below predates the restored three-level preference. Explicit Quality now activates tier 2, while existing defaults and automatic profiles keep tier 0/1 costs. Fresh baselines must include both characters at tier 2. The oracle retains one fixed warm-up and two strict measured readbacks per item; its original-shader GPU control remains INCONCLUSIVE. Exact receipts and install scope are in the [active visual TODO](../to-do/cloud-bot/ABYSS_WATER_DROPLET_COMPANION.md#three-rendering-tiers-and-fixed-capture-readiness--2026-10-09).
+
 No actual GPU/CPU/PSS/VRAM/frame-time gain has been measured for this research. No hypothetical percentages are baseline results.
 
 ## Source-grounded findings and existing optimizations

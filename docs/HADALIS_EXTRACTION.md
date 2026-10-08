@@ -51,3 +51,7 @@ Canonical Hadalis validation applies only to the exact Hadalis SHA printed by it
 ## Current local-model preference
 
 Companion defaults to `abyss.companionMind.localOnly = true`; the typed preference/default is supplied by Hadalis `114c8d4fdbe054e3e262a939f6ee3a8095d7110b` or later. The optional settings page exposes **Allow cloud models**. Catalog ownership and model supervision remain in Hadalis; Hadanion only filters selection and guards the request boundary. Local HTTP text transport bypasses environment proxies. The existing GGUF path stays on the shared local supervisor.
+
+## Current rendering preference
+
+Three-level Companion quality requires Hadalis `361e81b7c95cc96c43a9314c103a7a997998d6f5` or later. Performance maps to persisted `performance` (tier 0), Balanced to existing `quality` (tier 1), and explicit Quality to `detailed` (tier 2). Historical `balanced` and unknown values still fall back to tier 1. Automatic power profiles retain tier 0 in Power Saver and tier 1 otherwise; the shared shell Performance ceiling always wins. Installing Hadanion preserves the user's existing quality/automatic preferences. Earlier hosts safely retain their old tier-1 ceiling; they do not activate the new detailed tier.
