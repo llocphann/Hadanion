@@ -173,12 +173,18 @@ def compare_pngs(output, samples):
         after = Image.open(output / ('candidate-%d.png' % index)).convert('RGBA')
         if before.size != tuple(CAPTURE_SIZE) or after.size != tuple(CAPTURE_SIZE):
             raise RuntimeError('unexpected_png_dimensions')
-        if before.getbbox() is None:
-            raise RuntimeError('empty_baseline_capture:' + sample['name'])
+        if before.getchannel('A').getextrema()[1] == 0:
+            raise RuntimeError('empty_alpha_baseline_capture:' + sample['name'])
         difference = ImageChops.difference(before, after)
         changed = sum(1 for rgba in difference.getdata() if any(rgba))
         results.append(dict(name=sample['name'], changed_pixels=changed,
+                            baseline_rgba_sha256=digest(before.tobytes()),
+                            candidate_rgba_sha256=digest(after.tobytes()),
                             max_channel_delta=max(x[1] for x in difference.getextrema())))
+    baselines = {r['name']: r['baseline_rgba_sha256'] for r in results}
+    for name in ('aqua_faceplant', 'octo_head', 'aqua_theme_shift'):
+        if baselines[name] == baselines['aqua_idle']:
+            raise RuntimeError('shader_baseline_not_responsive:' + name)
     return results
 
 
@@ -231,6 +237,10 @@ def main():
         parser.error('self mode generates its own identical source and accepts no control reports')
     if not os.environ.get('WAYLAND_DISPLAY') or not os.environ.get('XDG_RUNTIME_DIR'):
         parser.error('real Wayland session required; no false GPU PASS on software/offscreen')
+    try:
+        from PIL import Image  # noqa: F401 - fail before allocating the evidence directory
+    except ImportError:
+        parser.error('Python Pillow is required for RGBA validation')
     for executable in ('qs', 'qsb', 'dbus-run-session'):
         if not shutil.which(executable):
             parser.error(executable + ' is required')
