@@ -6,6 +6,8 @@ on:
     paths:
       - 'scripts/wull-shader-ab.py'
       - 'scripts/wull-g1-resource-sample.py'
+      - 'scripts/wull-companion-voice-eval.py'
+      - 'scripts/test-wull-companion-voice-eval.py'
       - 'scripts/test-wull-g1-resource-contract.py'
       - 'scripts/wull-g1-compare.py'
       - 'scripts/test-wull-g1-compare-contract.py'
@@ -21,6 +23,8 @@ on:
     paths:
       - 'scripts/wull-shader-ab.py'
       - 'scripts/wull-g1-resource-sample.py'
+      - 'scripts/wull-companion-voice-eval.py'
+      - 'scripts/test-wull-companion-voice-eval.py'
       - 'scripts/test-wull-g1-resource-contract.py'
       - 'scripts/wull-g1-compare.py'
       - 'scripts/test-wull-g1-compare-contract.py'
@@ -50,6 +54,8 @@ jobs:
           for path in [
               'scripts/wull-shader-ab.py',
               'scripts/wull-g1-resource-sample.py',
+              'scripts/wull-companion-voice-eval.py',
+              'scripts/test-wull-companion-voice-eval.py',
               'scripts/test-wull-g1-resource-contract.py',
               'scripts/wull-g1-compare.py',
               'scripts/test-wull-g1-compare-contract.py',
@@ -67,6 +73,7 @@ jobs:
           python3 scripts/test-wull-shader-sequence-contract.py
           python3 scripts/test-wull-g1-resource-contract.py
           python3 scripts/test-wull-g1-compare-contract.py
+          python3 scripts/test-wull-companion-voice-eval.py
       - name: Check immutable candidate build and exact source
         run: |
           python3 - <<'PY'
