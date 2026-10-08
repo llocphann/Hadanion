@@ -10,6 +10,8 @@ on:
       - 'scripts/test-wull-shader-sequence-contract.py'
       - 'scripts/build-wull-material-candidate.py'
       - 'modules/abyss/companion/WaterDropletMaterial.frag'
+      - 'modules/abyss/companion/OctoTentacle.frag'
+      - 'modules/abyss/companion/WaterDropletContact.frag'
       - '.github/workflows/hadanion-shader-offline.yml'
   pull_request:
     paths:
@@ -19,6 +21,8 @@ on:
       - 'scripts/test-wull-shader-sequence-contract.py'
       - 'scripts/build-wull-material-candidate.py'
       - 'modules/abyss/companion/WaterDropletMaterial.frag'
+      - 'modules/abyss/companion/OctoTentacle.frag'
+      - 'modules/abyss/companion/WaterDropletContact.frag'
   workflow_dispatch:
 
 permissions:
@@ -118,5 +122,12 @@ jobs:
                   hashes[name] = hashlib.sha256(data).hexdigest()
                   print("QSB_SMOKE_BAKED", name, "SHA256", hashes[name])
               assert hashes["baseline"] != hashes["negative"]
-              print("QSB_SMOKE_PASS baseline/negative/bubble-candidate compiled independently")
+              for filename in ("OctoTentacle.frag", "WaterDropletContact.frag"):
+                  src = root / "modules/abyss/companion" / filename
+                  qsb = wd / (filename + ".qsb")
+                  subprocess.run([os.environ["QSB"], *flags, "-o", str(qsb), str(src)], check=True)
+                  assert qsb.is_file() and qsb.stat().st_size > 0
+                  subprocess.check_output([os.environ["QSB"], "-d", str(qsb)])
+                  print("QSB_SMOKE_OWNED", filename, hashlib.sha256(qsb.read_bytes()).hexdigest())
+              print("QSB_SMOKE_PASS baseline/negative/bubble-candidate/Octo/contact compiled independently")
           PY
