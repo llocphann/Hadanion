@@ -13,6 +13,8 @@ on:
       - 'scripts/test-wull-memory-store.py'
       - 'scripts/wull-proactive-policy-prototype.js'
       - 'scripts/test-wull-proactive-policy.cjs'
+      - 'modules/abyss/companion/WullBehaviorDirector.js'
+      - 'scripts/test-wull-behavior-director.cjs'
       - 'scripts/wull/local_mind.py'
       - 'scripts/test-wull-reply-guard-local.py'
       - 'services/WullMind.qml'
@@ -41,6 +43,8 @@ on:
       - 'scripts/test-wull-memory-store.py'
       - 'scripts/wull-proactive-policy-prototype.js'
       - 'scripts/test-wull-proactive-policy.cjs'
+      - 'modules/abyss/companion/WullBehaviorDirector.js'
+      - 'scripts/test-wull-behavior-director.cjs'
       - 'scripts/wull/local_mind.py'
       - 'scripts/test-wull-reply-guard-local.py'
       - 'services/WullMind.qml'
@@ -105,6 +109,7 @@ jobs:
           python3 scripts/test-wull-reply-guard-local.py
           python3 scripts/test-wull-memory-store.py
           node scripts/test-wull-proactive-policy.cjs
+          node scripts/test-wull-behavior-director.cjs
       - name: Check immutable candidate build and exact source
         run: |
           python3 - <<'PY'
