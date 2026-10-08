@@ -36,7 +36,19 @@ Window {
     property int currentIndex: 0
     property bool candidateTurn: false
     property int readyTicks: 0
+    property int framesSinceSwitch: 0
     property bool pending: false
+    onCandidateTurnChanged: { root.framesSinceSwitch = 0; root.readyTicks = 0 }
+    onFrameSwapped: root.framesSinceSwitch++
+    onSceneGraphError: (error, message) => {
+        console.log("HADANION_SHADER_AB_ERROR:scene_graph")
+        Qt.exit(6)
+    }
+    Item {
+        id: graphicsProbe
+        width: 0; height: 0
+        readonly property int api: GraphicsInfo.api
+    }
     property var cases: CASES
     readonly property var sample: cases[Math.min(currentIndex, cases.length - 1)]
     readonly property color accentColor: Qt.rgba(sample.accent[0], sample.accent[1], sample.accent[2], 1)
@@ -72,7 +84,12 @@ Window {
     Timer {
         running: true; repeat: true; interval: 80
         onTriggered: {
-            if (root.pending) return
+            if (root.pending || root.framesSinceSwitch < 1) return
+            const expectedApi = Quickshell.env("HADANION_SHADER_AB_GRAPHICS") === "vulkan" ? GraphicsInfo.Vulkan : GraphicsInfo.OpenGL
+            if (graphicsProbe.api !== expectedApi) {
+                console.log("HADANION_SHADER_AB_ERROR:graphics_api_mismatch:" + graphicsProbe.api)
+                Qt.exit(5); return
+            }
             const active = root.candidateTurn ? candidate : baseline
             if (active.status === ShaderEffect.Error) {
                 console.log("HADANION_SHADER_AB_ERROR:shader_status:" + active.log)
@@ -174,9 +191,21 @@ def classify(mode, results):
     return ('PASS_PIXEL_EQUAL' if differences == 0 else 'FAIL_PIXEL_DIFFERENCE', 0 if differences == 0 else 1)
 
 
+def capture_contract_sha():
+    fixture = QML.replace('CASES', json.dumps(cases(), sort_keys=True, separators=(',', ':')))
+    return digest(fixture.encode('utf-8'))
+
+
 def qualified_control(report, baseline_sha, baseline_qsb, qsb_version, graphics):
+    comparisons = report.get('comparison', [])
     return (report.get('status') == 'PASS_SAME_SOURCE'
             and report.get('mode') == 'self'
+            and report.get('schema') == 2
+            and report.get('candidate_source_sha256') == baseline_sha
+            and report.get('candidate_qsb_sha256') == baseline_qsb
+            and report.get('contract_sha256') == capture_contract_sha()
+            and len(comparisons) == len(cases())
+            and all(x.get('changed_pixels') == 0 for x in comparisons)
             and report.get('baseline_source_sha256') == baseline_sha
             and report.get('baseline_qsb_sha256') == baseline_qsb
             and report.get('qsb_version') == qsb_version
@@ -220,7 +249,7 @@ def main():
                     qt_qpa_platform='wayland', qsb_flags=['--qt6'])
     started = time.monotonic()
     output.mkdir(mode=0o700, parents=True)
-    report = dict(mode=args.mode, status='INCONCLUSIVE',
+    report = dict(mode=args.mode, schema=2, status='INCONCLUSIVE', contract_sha256=capture_contract_sha(),
                   baseline_source_sha256=digest(bsrc), candidate_source_sha256=digest(csrc),
                   qsb_version=qsb_version, graphics=graphics, cases=len(cases()),
                   result_scope='ShaderEffect pixel captures only; no whole-shell GPU time or FPS',
@@ -237,8 +266,8 @@ def main():
                 run_checked(['qsb', '--qt6', '-o', str(target), str(src)])
                 report[label + '_qsb_sha256'] = digest(target.read_bytes())
                 dump = run_checked(['qsb', '-d', str(target)])
-                if 'Fragment' not in dump or 'GLSL' not in dump:
-                    raise RuntimeError('qsb_package_incompatible_with_opengl:' + label)
+                if not dump.strip() or 'fragment' not in dump.lower():
+                    raise RuntimeError('qsb_dump_missing_fragment_stage:' + label)
                 report[label + '_qsb_inspection_sha256'] = digest(dump.encode('utf-8'))
             if args.mode == 'self' and report['baseline_qsb_sha256'] != report['candidate_qsb_sha256']:
                 raise RuntimeError('same_source_qsb_not_deterministic')
@@ -249,14 +278,20 @@ def main():
                     raise RuntimeError('control_report_does_not_qualify_current_baseline')
             if args.mode == 'compare':
                 neg = json.loads(args.negative_report.read_text(encoding='utf-8'))
+                expected_negative_sha = digest(negative_variant(bsrc.decode('utf-8')).encode('utf-8'))
                 if (neg.get('status') != 'PASS_DIFFERENCE_DETECTED'
                         or neg.get('mode') != 'negative'
+                        or neg.get('schema') != 2
+                        or neg.get('contract_sha256') != capture_contract_sha()
+                        or neg.get('candidate_source_sha256') != expected_negative_sha
+                        or len(neg.get('comparison', [])) != len(cases())
+                        or not any(x.get('changed_pixels', 0) > 0 for x in neg.get('comparison', []))
                         or neg.get('baseline_source_sha256') != report['baseline_source_sha256']
                         or neg.get('baseline_qsb_sha256') != report['baseline_qsb_sha256']
                         or neg.get('qsb_version') != qsb_version
                         or neg.get('graphics') != graphics):
                     raise RuntimeError('negative_report_does_not_qualify_current_baseline')
-            stage.joinpath('shell.qml').write_text(QML.replace('CASES', json.dumps(cases())), encoding='utf-8')
+            stage.joinpath('shell.qml').write_text(QML.replace('CASES', json.dumps(cases(), sort_keys=True, separators=(',', ':'))), encoding='utf-8')
             env = dict(os.environ)
             for key in ('DISPLAY', 'NIRI_SOCKET', 'INIR_COMPANIOND',
                         'QML_IMPORT_PATH', 'QML2_IMPORT_PATH', 'QS_CONFIG_PATH', 'QS_CONFIG_NAME'):
@@ -266,6 +301,7 @@ def main():
                 env['XDG_' + sub.upper() + '_HOME'] = str(stage / sub)
             env.update(QT_QPA_PLATFORM='wayland', QSG_RHI_BACKEND=args.graphics,
                        QT_QUICK_BACKEND='rhi', HADANION_SHADER_AB_OUT=str(output),
+                       HADANION_SHADER_AB_GRAPHICS=args.graphics,
                        QS_NO_RELOAD_POPUP='1')
             if args.diagnostics:
                 env.update(QSG_RENDER_TIMING='1', QSG_RHI_PROFILE='1', QSG_RENDERER_DEBUG='render', QSG_INFO='1')
