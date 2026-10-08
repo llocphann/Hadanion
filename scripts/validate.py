@@ -41,6 +41,7 @@ def stage(host, target):
     (target / "modules/abyss/companion").symlink_to(target / "optional/hadanion/modules/abyss/companion")
     shutil.copy2(ROOT / "services/WullMind.qml", target / "services/WullMind.qml")
     shutil.copy2(ROOT / "services/WullReplyGuard.js", target / "services/WullReplyGuard.js")
+    shutil.copy2(ROOT / "services/WullPersona.js", target / "services/WullPersona.js")
     for path in (host / "scripts/ai").glob("*.py"):
         shutil.copy2(path, target / "scripts/wull" / path.name)
     # Authoring and reference checks operate on the repository assets, not payload.
