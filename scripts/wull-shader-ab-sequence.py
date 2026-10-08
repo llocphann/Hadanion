@@ -44,11 +44,38 @@ def stage_result(directory):
         data = json.loads(report.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {"status": "UNREADABLE_RECEIPT", "path": str(report)}
+    rows = data.get("comparison", [])
+    rows = rows if isinstance(rows, list) else []
+    useful = []
+    for value in rows:
+        if not isinstance(value, dict):
+            continue
+        name = value.get("name", "")
+        if not isinstance(name, str) or len(name) > 80:
+            continue
+        keys = ("changed_pixels", "alpha_changed_pixels", "max_channel_delta",
+                "baseline_repeat_changed_pixels", "candidate_repeat_changed_pixels")
+        if not all(type(value.get(key, 0)) is int and value.get(key, 0) >= 0 for key in keys):
+            continue
+        useful.append(dict(name=name, **{key: value.get(key, 0) for key in keys},
+                           difference_bbox=value.get("difference_bbox"),
+                           baseline_repeat_bbox=value.get("baseline_repeat_bbox"),
+                           candidate_repeat_bbox=value.get("candidate_repeat_bbox")))
+    # Bounded aggregate diagnostics: no PNGs, user paths or frame contents copied.
+    diagnostic = dict(cases_reported=len(useful),
+                      cross_changed_pixels=sum(x["changed_pixels"] for x in useful),
+                      baseline_repeat_changed_pixels=sum(x["baseline_repeat_changed_pixels"] for x in useful),
+                      candidate_repeat_changed_pixels=sum(x["candidate_repeat_changed_pixels"] for x in useful),
+                      worst_cases=sorted(useful, key=lambda x: (
+                          x["baseline_repeat_changed_pixels"] +
+                          x["candidate_repeat_changed_pixels"] + x["changed_pixels"]),
+                          reverse=True)[:5])
     return {"status": data.get("status", "UNRECOGNIZED_RECEIPT"), "path": str(report),
             "baseline_source_sha256": data.get("baseline_source_sha256"),
             "baseline_qsb_sha256": data.get("baseline_qsb_sha256"),
             "candidate_source_sha256": data.get("candidate_source_sha256"),
-            "candidate_qsb_sha256": data.get("candidate_qsb_sha256")}
+            "candidate_qsb_sha256": data.get("candidate_qsb_sha256"),
+            "diagnostics": diagnostic}
 
 
 def invoke(command, cwd=ROOT):
