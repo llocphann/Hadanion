@@ -111,7 +111,7 @@ python3 scripts/wull-shader-ab.py --mode compare \
     --control-report "$run/aa/result.json" \
     --negative-report "$run/negative/result.json" \
     --output "$run/ab"
-printf 'Shader A/B reports: %s\\n' "$run"
+printf 'Shader A/B reports: %s\n' "$run"
 ```
 
 **Interpret reports literally.** `PASS_SAME_SOURCE` is required for A/A; `PASS_DIFFERENCE_DETECTED` is required for the deliberately perturbed shader. `PASS_PIXEL_EQUAL` on a candidate applies **only** to the tested 12 shader samples, on that backend/compiler build. `FAIL_PIXEL_DIFFERENCE` means a deviation was detected; it is *not* a runtime crash. Any `INCONCLUSIVE` (missing QSB variants, differing compiler outputs on A/A, capture timeout, missing Wayland, empty image, dependency error, source drift or invalid control report) blocks promotion. `capture.log` and `result.json` are private/local diagnostic data and should not be published unreviewed.
