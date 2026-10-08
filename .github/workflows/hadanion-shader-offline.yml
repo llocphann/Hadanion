@@ -9,6 +9,8 @@ on:
       - 'scripts/wull-companion-voice-eval.py'
       - 'services/WullReplyGuard.js'
       - 'scripts/wull/reply_guard.py'
+      - 'scripts/wull/memory_store.py'
+      - 'scripts/test-wull-memory-store.py'
       - 'scripts/wull/local_mind.py'
       - 'scripts/test-wull-reply-guard-local.py'
       - 'services/WullMind.qml'
@@ -33,6 +35,8 @@ on:
       - 'scripts/wull-companion-voice-eval.py'
       - 'services/WullReplyGuard.js'
       - 'scripts/wull/reply_guard.py'
+      - 'scripts/wull/memory_store.py'
+      - 'scripts/test-wull-memory-store.py'
       - 'scripts/wull/local_mind.py'
       - 'scripts/test-wull-reply-guard-local.py'
       - 'services/WullMind.qml'
@@ -70,6 +74,8 @@ jobs:
               'scripts/wull-g1-resource-sample.py',
               'scripts/wull-companion-voice-eval.py',
               'scripts/wull/reply_guard.py',
+              'scripts/wull/memory_store.py',
+              'scripts/test-wull-memory-store.py',
               'scripts/wull/local_mind.py',
               'scripts/test-wull-reply-guard-local.py',
               'scripts/test-wull-companion-voice-eval.py',
@@ -93,6 +99,7 @@ jobs:
           python3 scripts/test-wull-companion-voice-eval.py
           node scripts/test-wull-reply-guard.cjs
           python3 scripts/test-wull-reply-guard-local.py
+          python3 scripts/test-wull-memory-store.py
       - name: Check immutable candidate build and exact source
         run: |
           python3 - <<'PY'
