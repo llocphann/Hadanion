@@ -97,39 +97,51 @@ def main():
         native_spec = importlib.util.spec_from_file_location("native_session", work / "scripts/native_test_session.py")
         native_session = importlib.util.module_from_spec(native_spec)
         native_spec.loader.exec_module(native_session)
-        session_root = work / "validation-session"
-        session_root.mkdir()
-        # All owned Qt windows share this private compositor rather than the
-        # user's pointer/focus or another concurrently running host validator.
-        with native_session.private_wayland(session_root) as native_environment:
-            if native_environment:
-                for key in ("WAYLAND_DISPLAY", "NIRI_SOCKET", "QT_QPA_PLATFORM",
-                            "XDG_CONFIG_HOME", "XDG_STATE_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME"):
-                    environment[key] = native_environment[key]
-                for key in ("QS_CONFIG_NAME", "QS_CONFIG_PATH", "QS_MANIFEST"):
-                    environment.pop(key, None)
-            for command in checks:
-                label = Path(command[1]).name if command[0] != "cargo" else "Rust behavior/protocol tests"
-                if args.only and label not in args.only:
-                    continue
-                # These fixtures already create their own private compositor.
-                # Avoid nesting them inside a second test compositor/viewport.
-                run_environment = base_environment if label in (
-                    "test-host-runtime.py", "test-wull-immersion-runtime.py") else environment
-                result = subprocess.run(command, cwd=work, env=run_environment, stdout=subprocess.PIPE,
+        private_fixtures = {
+            "test-wull-gguf-ui.py", "test-wull-shared-ai-runtime.py", "test-wull-abyss-water.py",
+            "test-wull-portal-runtime.py", "test-wull-presence-interaction.py", "test-wull-alive-reactions.py",
+            "test-wull-mature-popup.py", "test-companion-airborne-orientation.py", "test-companion-volume.py",
+            "test-wull-mind-ui.py", "test-wull-cloud-orbit.py",
+        }
+        sessions = work / "validation-sessions"
+        sessions.mkdir()
+        for command in checks:
+            label = Path(command[1]).name if command[0] != "cargo" else "Rust behavior/protocol tests"
+            if args.only and label not in args.only:
+                continue
+            if label in private_fixtures:
+                session_root = sessions / label
+                session_root.mkdir()
+                # Fresh private windows prevent parent-compositor occlusion and
+                # pointer/focus interference with another running Qt validator.
+                with native_session.private_wayland(session_root) as native_environment:
+                    run_environment = base_environment.copy()
+                    if native_environment:
+                        for key in ("WAYLAND_DISPLAY", "NIRI_SOCKET", "QT_QPA_PLATFORM",
+                                    "XDG_CONFIG_HOME", "XDG_STATE_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME"):
+                            run_environment[key] = native_environment[key]
+                        for key in ("QS_CONFIG_NAME", "QS_CONFIG_PATH", "QS_MANIFEST"):
+                            run_environment.pop(key, None)
+                    else:
+                        run_environment.pop("WAYLAND_DISPLAY", None)
+                    result = subprocess.run(command, cwd=work, env=run_environment, stdout=subprocess.PIPE,
+                                            stderr=subprocess.STDOUT, text=True, timeout=180)
+            else:
+                # Native host/immersion fixtures already own private compositors.
+                result = subprocess.run(command, cwd=work, env=base_environment, stdout=subprocess.PIPE,
                                         stderr=subprocess.STDOUT, text=True, timeout=180)
-                skipped_check = result.returncode == 77 or result.stdout.lstrip().startswith("SKIP:")
-                print(("SKIP " if skipped_check else "PASS " if result.returncode == 0 else "FAIL ") + label, flush=True)
-                if skipped_check:
-                    skipped += 1
-                    continue
-                if result.returncode:
-                    failed += 1
-                    print(result.stdout[-12000:], flush=True)
-                else:
-                    passed += 1
-                    if command[0] != qml_parser:
-                        print(result.stdout[-1200:], flush=True)
+            skipped_check = result.returncode == 77 or result.stdout.lstrip().startswith("SKIP:")
+            print(("SKIP " if skipped_check else "PASS " if result.returncode == 0 else "FAIL ") + label, flush=True)
+            if skipped_check:
+                skipped += 1
+                continue
+            if result.returncode:
+                failed += 1
+                print(result.stdout[-12000:], flush=True)
+            else:
+                passed += 1
+                if command[0] != qml_parser:
+                    print(result.stdout[-1200:], flush=True)
         if args.require_clean:
             for repo, original in revisions.items():
                 final = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
