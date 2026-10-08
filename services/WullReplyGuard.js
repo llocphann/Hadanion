@@ -25,7 +25,10 @@ function parse(raw) {
     const cleaned = raw.trim().replace(/^\x60{3}(?:json)?\s*|\s*\x60{3}$/g,"")
     let parsed
     try { parsed=JSON.parse(cleaned) } catch(e) {
-        // Keep existing plain-text fallback but never forward internal tokens.
+        // Never echo a malformed structured JSON/tool envelope as a user reply.
+        if (/^[\[{]/.test(cleaned))
+            return {ok:false,reason:"malformed_structured_output"}
+        // Keep the pre-existing plain-text fallback for real plain prose.
         return normalizeText(cleaned,"idle")
     }
     if (parsed===null || typeof parsed !== "object" || Array.isArray(parsed)
