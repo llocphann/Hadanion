@@ -6,6 +6,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import qs.services
 import qs.modules.common
+import "WullReplyGuard.js" as WullReplyGuard
 
 // On-demand model I/O is isolated from the renderer/native companion clock.
 Singleton {
@@ -251,17 +252,14 @@ Singleton {
             resolvePendingUser(0,true)
             return
         }
-        let reply
-        try {reply=JSON.parse(String(raw).replace(/^```(?:json)?\s*|\s*```$/g,""))} catch(e) {reply={text:raw,expression:"idle"}}
-        const value=String(reply?.text ?? "").replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g,"").trim().slice(0,420)
-        if (!value) {resolvePendingUser(0,true);errorMessage="The model returned no text.";connectionStatus="error";return}
+        const guarded=WullReplyGuard.parse(raw)
+        if (!guarded.ok) {resolvePendingUser(0,true);errorMessage="The model returned an invalid reply.";connectionStatus="error";return}
+        const value=guarded.text
         resolvePendingUser(0,false)
         const key=String(job.serial)
         history=history.concat([{id:0,clientId:key+":assistant",role:"assistant",content:value}]).slice(-2000)
         connectionStatus="ready";say(value,"ai")
-        const expression=["idle","happy","excited","thinking","working","surprised","sleepy","sad","alert"].includes(reply.expression)
-            ? reply.expression : "idle"
-        if(hostVisible)reactionRequested(expression)
+        if(hostVisible)reactionRequested(guarded.expression)
         dispatch("history_append",{prompt:job.request.prompt,reply:value,model:job.request.model,clientKey:key})
     }
     Connections {
@@ -452,14 +450,21 @@ Singleton {
                 choiceSaved(result.field,result.value)
             }
         } else if (job.action==="chat") {
+            const guarded=WullReplyGuard.normalizeText(result.text,result.expression)
+            if (!guarded.ok) {
+                resolvePendingUser(0,true)
+                errorMessage="The local model returned an invalid reply."
+                connectionStatus="error"
+                return
+            }
             connectionStatus="ready";historyLoaded=true
             if (!job.automatic) {
                 resolvePendingUser(result.userMessageId ?? 0,false)
-                history=history.concat([{id:result.assistantMessageId ?? 0,role:"assistant",content:result.text,
+                history=history.concat([{id:result.assistantMessageId ?? 0,role:"assistant",content:guarded.text,
                     persisted:result.historySaved===true}]).slice(-2000)
             }
-            say(result.text,"local")
-            if (hostVisible) reactionRequested(result.expression)
+            say(guarded.text,"local")
+            if (hostVisible) reactionRequested(guarded.expression)
         }
     }
     onCharacterChanged: {
