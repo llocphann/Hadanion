@@ -1,0 +1,7 @@
+/native/target/
+/native/bin/
+__pycache__/
+*.pyc
+*.blend1
+/test-results/
+AGENTS.md

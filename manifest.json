@@ -1,0 +1,10 @@
+{
+  "id": "hadanion",
+  "version": "0.1.0",
+  "hostApi": 1,
+  "host": "Hadalis",
+  "session": "HadalisSession.qml",
+  "output": "HadalisOutput.qml",
+  "settings": "modules/settings/CompanionConfig.qml",
+  "binary": "native/bin/inir-companiond"
+}
