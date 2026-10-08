@@ -35,10 +35,22 @@ Window {
     width: 320; height: 320; visible: true; color: "transparent"
     property int currentIndex: 0
     property bool candidateTurn: false
-    property int repeatPass: 0 // same shader, second independent grab
+    property int repeatPass: -1 // one retained warm-up, then two measured grabs
     property int readyTicks: 0
     property int framesSinceSwitch: 0
     property bool pending: false
+    function advanceCapture() {
+        root.readyTicks = 0; root.pending = false
+        if (root.repeatPass < 1) { ++root.repeatPass; return }
+        root.repeatPass = -1
+        if (!root.candidateTurn) { root.candidateTurn = true; return }
+        ++root.currentIndex
+        if (root.currentIndex === root.cases.length) {
+            console.log("HADANION_SHADER_AB_CAPTURE_OK:" + root.cases.length)
+            Qt.quit(); return
+        }
+        root.candidateTurn = false
+    }
     onCandidateTurnChanged: { root.framesSinceSwitch = 0; root.readyTicks = 0 }
     onFrameSwapped: root.framesSinceSwitch++
     onSceneGraphError: (error, message) => {
@@ -99,7 +111,7 @@ Window {
             if (++root.readyTicks < 4) return
             root.pending = true
             const tag = root.candidateTurn ? "candidate" : "baseline"
-            const suffix = root.repeatPass === 1 ? "-repeat" : ""
+            const suffix = root.repeatPass < 0 ? "-warmup" : root.repeatPass === 1 ? "-repeat" : ""
             const capturedIndex = root.currentIndex
             active.grabToImage(function(result) {
                 const path = Quickshell.env("HADANION_SHADER_AB_OUT") + "/" + tag + "-" + capturedIndex + suffix + ".png"
@@ -107,21 +119,7 @@ Window {
                     console.log("HADANION_SHADER_AB_ERROR:save_failed")
                     Qt.exit(4); return
                 }
-                root.readyTicks = 0; root.pending = false
-                if (root.repeatPass === 0) {
-                    root.repeatPass = 1 // re-render the same item without visibility switch
-                } else {
-                    root.repeatPass = 0
-                    if (!root.candidateTurn) root.candidateTurn = true
-                    else {
-                        ++root.currentIndex
-                        if (root.currentIndex === root.cases.length) {
-                            console.log("HADANION_SHADER_AB_CAPTURE_OK:" + root.cases.length)
-                            Qt.quit(); return
-                        }
-                        root.candidateTurn = false
-                    }
-                }
+                root.advanceCapture()
             }, Qt.size(304, 304))
         }
     }
@@ -210,9 +208,11 @@ def compare_pngs(output, samples):
     results = []
     for index, sample in enumerate(samples):
         images = {}
-        for label, suffix in (('baseline', ''), ('baseline', '-repeat'),
-                              ('candidate', ''), ('candidate', '-repeat')):
+        for label, suffix in (('baseline', '-warmup'), ('baseline', ''), ('baseline', '-repeat'),
+                              ('candidate', '-warmup'), ('candidate', ''), ('candidate', '-repeat')):
             with Image.open(output / ('%s-%d%s.png' % (label, index, suffix))) as file:
+                if file.size != tuple(CAPTURE_SIZE):
+                    raise RuntimeError('unexpected_png_dimensions')
                 images[label + suffix] = file.convert('RGBA')
         before, after = images['baseline'], images['candidate']
         if before.getchannel('A').getextrema()[1] == 0:
@@ -230,6 +230,8 @@ def compare_pngs(output, samples):
                             candidate_repeat_max_channel_delta=c_repeat['max_channel_delta'],
                             baseline_repeat_bbox=b_repeat['difference_bbox'],
                             candidate_repeat_bbox=c_repeat['difference_bbox'],
+                            baseline_warmup_rgba_sha256=digest(images['baseline-warmup'].tobytes()),
+                            candidate_warmup_rgba_sha256=digest(images['candidate-warmup'].tobytes()),
                             baseline_rgba_sha256=digest(before.tobytes()),
                             baseline_repeat_rgba_sha256=digest(images['baseline-repeat'].tobytes()),
                             candidate_rgba_sha256=digest(after.tobytes()),
@@ -329,7 +331,9 @@ def main():
                   baseline_source_sha256=digest(bsrc), candidate_source_sha256=digest(csrc),
                   qsb_version=qsb_version, qsb_binary=qsb, graphics=graphics, cases=len(cases()),
                   result_scope='ShaderEffect pixel captures only; no whole-shell GPU time or FPS',
-                  diagnostics_enabled=args.diagnostics)
+                  diagnostics_enabled=args.diagnostics,
+                  capture_schedule=dict(warmup_per_item=1, measured_per_item=2,
+                                        warmup_retained=True, selection='fixed_before_measurement'))
     try:
         with tempfile.TemporaryDirectory(prefix='hadanion-shader-ab-') as temporary:
             stage = Path(temporary)

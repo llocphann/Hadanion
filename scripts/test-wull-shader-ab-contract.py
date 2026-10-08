@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Pure offline guards for source-pinned Hadanion dual-QSB visual comparison."""
 import importlib.util
+import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -42,13 +44,35 @@ for character_variant in (0, 4):
 assert len({state["name"] for state in module.cases()}) == len(module.cases())
 assert 'onFrameSwapped:' in module.QML and 'framesSinceSwitch < 1' in module.QML
 assert 'graphics_api_mismatch' in module.QML
-assert 'property int repeatPass: 0' in module.QML
+assert 'property int repeatPass: -1' in module.QML
 assert 'baseline-repeat' in module.QML or 'root.repeatPass === 1' in module.QML
 assert module.capture_contract_sha() == module.capture_contract_sha()
 assert module.QML.count('fragmentShader: Qt.resolvedUrl(') == 2
 assert '"baseline/WaterDropletMaterial.frag.qsb"' in module.QML
 assert '"candidate/WaterDropletMaterial.frag.qsb"' in module.QML
 assert 'Math.min(currentIndex, cases.length - 1)' in module.QML
+# Exercise the actual QML transition function with hard-coded capture order.
+# One warm-up per item is fixed in advance; neither pixels nor variance choose
+# which frames get measured. Both later captures must still match exactly.
+transition = re.search(r'    function advanceCapture\(\) \{[\s\S]*?\n    \}', module.QML).group(0)
+script = '''
+const vm = require('node:vm');
+const root = {currentIndex:0,candidateTurn:false,repeatPass:-1,readyTicks:4,pending:true,cases:[0,1,2]};
+let quits = 0;
+const api = vm.createContext({root, Qt:{quit:()=>{++quits}},console:{log:()=>{}}});
+vm.runInContext(TRANSITION,api);
+const seen=[];
+while (!quits && seen.length < 25) {
+    seen.push([root.currentIndex,root.candidateTurn,root.repeatPass]);
+    api.advanceCapture();
+    if (root.readyTicks!==0 || root.pending) throw Error('capture state did not settle');
+}
+process.stdout.write(JSON.stringify({seen,quits,ended:root.currentIndex}));
+'''.replace('TRANSITION', json.dumps(transition))
+sequence = json.loads(subprocess.check_output(['node', '-e', script], text=True))
+assert sequence == dict(seen=[[index, candidate, frame] for index in range(3)
+                             for candidate in (False, True) for frame in (-1, 0, 1)],
+                        quits=1, ended=3)
 original = module.NEGATIVE_TARGET
 altered = module.negative_variant(original)
 assert original != altered and module.NEGATIVE_REPLACEMENT in altered
@@ -106,11 +130,22 @@ with tempfile.TemporaryDirectory() as temporary:
         image = Image.new("RGBA", tuple(module.CAPTURE_SIZE), (index + 1, 80, 130, 255))
         image.putpixel((0, 0), (0, 0, 0, 0))
         for label in ("baseline", "candidate"):
+            # Cold readback variance is retained but never substitutes for the
+            # two fixed measured frames; it cannot loosen their pixel gate.
+            Image.new("RGBA", tuple(module.CAPTURE_SIZE), (0, 0, 0, 0)).save(output / f"{label}-{index}-warmup.png")
             image.save(output / f"{label}-{index}.png")
             image.save(output / f"{label}-{index}-repeat.png")
     comparisons = module.compare_pngs(output, module.cases())
     assert len(comparisons) == len(module.cases())
     assert module.classify("self", comparisons) == ("PASS_SAME_SOURCE", 0)
+    (output / "candidate-0-warmup.png").unlink()
+    try:
+        module.compare_pngs(output, module.cases())
+    except FileNotFoundError:
+        pass
+    else:
+        raise AssertionError("warm-up evidence must be retained")
+    Image.new("RGBA", tuple(module.CAPTURE_SIZE), (0, 0, 0, 0)).save(output / "candidate-0-warmup.png")
     with Image.open(output / "baseline-0-repeat.png") as image:
         changed = image.convert("RGBA")
     changed.putpixel((0, 0), (9, 0, 0, 0))
