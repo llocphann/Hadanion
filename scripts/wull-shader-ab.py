@@ -38,7 +38,7 @@ Window {
     property int readyTicks: 0
     property bool pending: false
     property var cases: CASES
-    readonly property var sample: cases[currentIndex]
+    readonly property var sample: cases[Math.min(currentIndex, cases.length - 1)]
     readonly property color accentColor: Qt.rgba(sample.accent[0], sample.accent[1], sample.accent[2], 1)
     readonly property color specularColor: Qt.rgba(0.85, 0.94, 1, 1)
     readonly property vector4d animationUniform: Qt.vector4d(sample.shimmer, sample.tip, sample.pulse, sample.effects)
@@ -189,13 +189,16 @@ def main():
     parser.add_argument('--baseline-source', type=Path, default=PRODUCTION)
     parser.add_argument('--candidate-source', type=Path)
     parser.add_argument('--control-report', type=Path)
+    parser.add_argument('--negative-report', type=Path)
     parser.add_argument('--output', type=Path, required=True, help='new, private local directory, never overwritten')
     parser.add_argument('--graphics', choices=('opengl', 'vulkan'), default='opengl')
     args = parser.parse_args()
-    if args.mode == 'compare' and (not args.candidate_source or not args.control_report):
-        parser.error('compare requires --candidate-source and a qualifying --control-report')
-    if args.mode != 'compare' and (args.candidate_source or args.control_report):
-        parser.error('self/negative generate their candidate; omit --candidate-source and --control-report')
+    if args.mode == 'compare' and (not args.candidate_source or not args.control_report or not args.negative_report):
+        parser.error('compare requires --candidate-source, --control-report and --negative-report')
+    if args.mode == 'negative' and (args.candidate_source or not args.control_report or args.negative_report):
+        parser.error('negative requires --control-report only (no --candidate-source)')
+    if args.mode == 'self' and (args.candidate_source or args.control_report or args.negative_report):
+        parser.error('self mode generates its own identical source and accepts no control reports')
     if not os.environ.get('WAYLAND_DISPLAY') or not os.environ.get('XDG_RUNTIME_DIR'):
         parser.error('real Wayland session required; no false GPU PASS on software/offscreen')
     for executable in ('qs', 'qsb', 'dbus-run-session'):
@@ -237,11 +240,20 @@ def main():
                 report[label + '_qsb_inspection_sha256'] = digest(dump.encode('utf-8'))
             if args.mode == 'self' and report['baseline_qsb_sha256'] != report['candidate_qsb_sha256']:
                 raise RuntimeError('same_source_qsb_not_deterministic')
-            if args.mode == 'compare':
+            if args.mode != 'self':
                 control = json.loads(args.control_report.read_text(encoding='utf-8'))
                 if not qualified_control(control, report['baseline_source_sha256'],
                                          report['baseline_qsb_sha256'], qsb_version, graphics):
                     raise RuntimeError('control_report_does_not_qualify_current_baseline')
+            if args.mode == 'compare':
+                neg = json.loads(args.negative_report.read_text(encoding='utf-8'))
+                if (neg.get('status') != 'PASS_DIFFERENCE_DETECTED'
+                        or neg.get('mode') != 'negative'
+                        or neg.get('baseline_source_sha256') != report['baseline_source_sha256']
+                        or neg.get('baseline_qsb_sha256') != report['baseline_qsb_sha256']
+                        or neg.get('qsb_version') != qsb_version
+                        or neg.get('graphics') != graphics):
+                    raise RuntimeError('negative_report_does_not_qualify_current_baseline')
             stage.joinpath('shell.qml').write_text(QML.replace('CASES', json.dumps(cases())), encoding='utf-8')
             env = dict(os.environ)
             for key in ('DISPLAY', 'NIRI_SOCKET', 'INIR_COMPANIOND',
