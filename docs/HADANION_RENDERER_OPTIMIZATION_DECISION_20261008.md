@@ -1,6 +1,6 @@
 # Hadanion — pre-implementation renderer optimization decision
 
-Date: 2026-10-08. **Status: research/design only, OPEN; no runtime, shader, compiled .qsb, test or host code modified by this document.**
+Original decision: 2026-10-08; updated 2026-10-09. **Status: current technical evidence and G0/G1 runbook, NOT an independent roadmap.** G0 offline harness and G1 resource sampler are implemented and CI-tested; physical G0/G1 qualification remains OPEN. No production shader, compiled release QSB or renderer change is approved by this document. See the [single active Visual/Behavior TODO](../to-do/cloud-bot/ABYSS_WATER_DROPLET_COMPANION.md) for the authoritative checklist.
 
 Source reviewed: Hadanion `main@bd5281d4f27a91c611e741d13225b76b3d7dc228`; Hadalis host `dev@d31e54b9e7444c623f185b4d740344040a39b62a`. Re-pin both immediately before measurement/implementation: prior SHAs are **research snapshots**, not current production or physical-desktop acceptance. This is a technical study subordinate to [the single active Companion TODO](../to-do/cloud-bot/ABYSS_WATER_DROPLET_COMPANION.md); it is **not a second task board**. [Host/API ownership](HADALIS_EXTRACTION.md). Hadanion owns Aqua/Octo shaders, motions, tests and renderer; Hadalis owns shared Abyss fields, optional host surfaces, compositor, theme and desktop-wide optimization research.
 
