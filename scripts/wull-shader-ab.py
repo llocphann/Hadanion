@@ -1,0 +1,287 @@
+#!/usr/bin/env python3
+"""Isolated Hadanion liquid shader A/A, deliberate negative and A/B captures.
+
+Bakes two independently named QSBs; never edits an installed runtime. GPU
+captures require a Wayland Qt/Quickshell/qsb environment and are not FPS tests.
+"""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import signal
+import subprocess
+import tempfile
+import time
+
+ROOT = Path(__file__).resolve().parents[1]
+PRODUCTION = ROOT / 'modules/abyss/companion/WaterDropletMaterial.frag'
+CAPTURE_SIZE = [304, 304]
+NEGATIVE_TARGET = 'fragColor=(vec4(film(color)*alpha,alpha)+vec4(pow(hue,vec3(1.0/2.2))*halo,halo))*qt_Opacity;'
+NEGATIVE_REPLACEMENT = 'fragColor=vec4(0.95,0.05,0.05,1.0)*qt_Opacity;'
+BAD_LOG = ('TypeError:', 'ReferenceError:', 'Binding loop', 'Unable to assign',
+           'ShaderEffect: Failed', 'Failed to compile shader', 'Failed to create pipeline')
+
+# Raw ShaderEffect uniform fields match the existing WaterDropletMaterial.frag.
+# No independent actor, timeline, shape path, secondary Qt window or IPC.
+QML = '''//@ pragma UseQApplication
+//@ pragma Env INIR_STANDALONE_WINDOW=1
+import QtQuick
+import QtQuick.Window
+import Quickshell
+Window {
+    id: root
+    width: 320; height: 320; visible: true; color: "transparent"
+    property int currentIndex: 0
+    property bool candidateTurn: false
+    property int readyTicks: 0
+    property bool pending: false
+    property var cases: CASES
+    readonly property var sample: cases[currentIndex]
+    readonly property color accentColor: Qt.rgba(sample.accent[0], sample.accent[1], sample.accent[2], 1)
+    readonly property color specularColor: Qt.rgba(0.85, 0.94, 1, 1)
+    readonly property vector4d animationUniform: Qt.vector4d(sample.shimmer, sample.tip, sample.pulse, sample.effects)
+    readonly property vector4d opticsUniform: Qt.vector4d(sample.yaw, sample.variant, sample.gazeX, sample.gazeY)
+    readonly property vector4d tierUniform: Qt.vector4d(sample.tier, sample.translucency, 0, 0)
+    readonly property vector4d poseUniform: Qt.vector4d(sample.pitch, sample.roll, sample.squash, sample.stretch)
+    ShaderEffect {
+        id: baseline
+        x: 8; y: 8; width: 304; height: 304
+        visible: !root.candidateTurn
+        property color accent: root.accentColor
+        property color specular: root.specularColor
+        property vector4d motion: root.animationUniform
+        property vector4d optics: root.opticsUniform
+        property vector4d rendering: root.tierUniform
+        property vector4d pose: root.poseUniform
+        fragmentShader: Qt.resolvedUrl("baseline/WaterDropletMaterial.frag.qsb")
+    }
+    ShaderEffect {
+        id: candidate
+        x: 8; y: 8; width: 304; height: 304
+        visible: root.candidateTurn
+        property color accent: root.accentColor
+        property color specular: root.specularColor
+        property vector4d motion: root.animationUniform
+        property vector4d optics: root.opticsUniform
+        property vector4d rendering: root.tierUniform
+        property vector4d pose: root.poseUniform
+        fragmentShader: Qt.resolvedUrl("candidate/WaterDropletMaterial.frag.qsb")
+    }
+    Timer {
+        running: true; repeat: true; interval: 80
+        onTriggered: {
+            if (root.pending) return
+            const active = root.candidateTurn ? candidate : baseline
+            if (active.status === ShaderEffect.Error) {
+                console.log("HADANION_SHADER_AB_ERROR:shader_status:" + active.log)
+                Qt.exit(3); return
+            }
+            if (++root.readyTicks < 4) return
+            root.pending = true
+            const tag = root.candidateTurn ? "candidate" : "baseline"
+            active.grabToImage(function(result) {
+                const path = Quickshell.env("HADANION_SHADER_AB_OUT") + "/" + tag + "-" + root.currentIndex + ".png"
+                if (!result.saveToFile(path)) {
+                    console.log("HADANION_SHADER_AB_ERROR:save_failed")
+                    Qt.exit(4); return
+                }
+                root.readyTicks = 0; root.pending = false
+                if (!root.candidateTurn) root.candidateTurn = true
+                else {
+                    root.candidateTurn = false
+                    ++root.currentIndex
+                    if (root.currentIndex === root.cases.length) {
+                        console.log("HADANION_SHADER_AB_CAPTURE_OK:" + root.cases.length)
+                        Qt.quit()
+                    }
+                }
+            }, Qt.size(304, 304))
+        }
+    }
+}
+'''
+
+
+def digest(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def run_checked(command, timeout=30):
+    result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+    if result.returncode:
+        raise RuntimeError('command_failed:' + command[0] + ':exit=' + str(result.returncode)
+                           + '\n' + (result.stderr + result.stdout)[-1000:])
+    return result.stdout.strip() or result.stderr.strip()
+
+
+def cases():
+    # Shape branches, pose derivatives, tiers, and body material.
+    states = [
+        ('aqua_idle', 0, 0, 0, 0, 0, 0),
+        ('aqua_yaw', 0, 1, .35, 0, 0, 0),
+        ('aqua_faceplant', 0, 1, -.3, 1.15, .35, 0),
+        ('aqua_back', 0, 0, 3.14, 2.4, -.8, 0),
+        ('aqua_tip', 0, 1, .5, .22, -.19, .4),
+        ('octo_head', 4, 1, -.45, .7, 0, 0),
+        ('cornea', 2, 1, 0, 0, 0, 0),
+        ('limb', 1, 0, .35, .55, 0, 0),
+        ('foot', 3, 0, 0, 0, 0, 0),
+        ('aqua_low_detail', 0, 0, -.25, 0, 0, 0),
+    ]
+    samples = []
+    for name, variant, tier, yaw, pitch, roll, tip in states:
+        samples.append(dict(name=name, variant=variant, tier=tier, yaw=yaw,
+                            pitch=pitch, roll=roll, tip=tip, shimmer=.3,
+                            pulse=.5, effects=1, gazeX=.1, gazeY=-.2,
+                            translucency=.16, squash=0, stretch=0,
+                            accent=[.05,.59,.84]))
+    samples += [dict(samples[0], name='aqua_no_effects', effects=0),
+                dict(samples[0], name='aqua_theme_shift', accent=[.8,.13,.44], translucency=.32)]
+    return samples
+
+
+def negative_variant(src):
+    if src.count(NEGATIVE_TARGET) != 1:
+        raise RuntimeError('negative_control_anchor_not_unique')
+    return src.replace(NEGATIVE_TARGET, NEGATIVE_REPLACEMENT)
+
+
+def compare_pngs(output, samples):
+    from PIL import Image, ImageChops
+    results = []
+    for index, sample in enumerate(samples):
+        before = Image.open(output / ('baseline-%d.png' % index)).convert('RGBA')
+        after = Image.open(output / ('candidate-%d.png' % index)).convert('RGBA')
+        if before.size != tuple(CAPTURE_SIZE) or after.size != tuple(CAPTURE_SIZE):
+            raise RuntimeError('unexpected_png_dimensions')
+        if before.getbbox() is None:
+            raise RuntimeError('empty_baseline_capture:' + sample['name'])
+        difference = ImageChops.difference(before, after)
+        changed = sum(1 for rgba in difference.getdata() if any(rgba))
+        results.append(dict(name=sample['name'], changed_pixels=changed,
+                            max_channel_delta=max(x[1] for x in difference.getextrema())))
+    return results
+
+
+def classify(mode, results):
+    differences = sum(x['changed_pixels'] for x in results)
+    if mode == 'self':
+        return ('PASS_SAME_SOURCE' if differences == 0 else 'INCONCLUSIVE_SELF_CONTROL', 0 if differences == 0 else 2)
+    if mode == 'negative':
+        return ('PASS_DIFFERENCE_DETECTED' if differences > 0 else 'FAIL_NEGATIVE_UNDETECTED', 0 if differences > 0 else 3)
+    return ('PASS_PIXEL_EQUAL' if differences == 0 else 'FAIL_PIXEL_DIFFERENCE', 0 if differences == 0 else 1)
+
+
+def qualified_control(report, baseline_sha, baseline_qsb, qsb_version, graphics):
+    return (report.get('status') == 'PASS_SAME_SOURCE'
+            and report.get('mode') == 'self'
+            and report.get('baseline_source_sha256') == baseline_sha
+            and report.get('baseline_qsb_sha256') == baseline_qsb
+            and report.get('qsb_version') == qsb_version
+            and report.get('graphics') == graphics)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--mode', choices=('self', 'negative', 'compare'), required=True)
+    parser.add_argument('--baseline-source', type=Path, default=PRODUCTION)
+    parser.add_argument('--candidate-source', type=Path)
+    parser.add_argument('--control-report', type=Path)
+    parser.add_argument('--output', type=Path, required=True, help='new, private local directory, never overwritten')
+    parser.add_argument('--graphics', choices=('opengl', 'vulkan'), default='opengl')
+    args = parser.parse_args()
+    if args.mode == 'compare' and (not args.candidate_source or not args.control_report):
+        parser.error('compare requires --candidate-source and a qualifying --control-report')
+    if args.mode != 'compare' and (args.candidate_source or args.control_report):
+        parser.error('self/negative generate their candidate; omit --candidate-source and --control-report')
+    if not os.environ.get('WAYLAND_DISPLAY') or not os.environ.get('XDG_RUNTIME_DIR'):
+        parser.error('real Wayland session required; no false GPU PASS on software/offscreen')
+    for executable in ('qs', 'qsb', 'dbus-run-session'):
+        if not shutil.which(executable):
+            parser.error(executable + ' is required')
+    baseline_source = args.baseline_source.resolve()
+    bsrc = baseline_source.read_bytes()
+    csrc = (args.candidate_source.resolve().read_bytes() if args.mode == 'compare'
+            else negative_variant(bsrc.decode('utf-8')).encode('utf-8') if args.mode == 'negative'
+            else bsrc)
+    if args.mode != 'self' and bsrc == csrc:
+        parser.error('candidate source must differ from baseline source')
+    output = args.output.resolve()
+    if output.exists():
+        parser.error('--output must not exist; refusing to overwrite evidence')
+    qsb_version = run_checked(['qsb', '--version'])
+    graphics = dict(backend=args.graphics, wayland_display=os.environ['WAYLAND_DISPLAY'],
+                    qt_qpa_platform='wayland', qsb_flags=['--qt6'])
+    started = time.monotonic()
+    output.mkdir(mode=0o700, parents=True)
+    report = dict(mode=args.mode, status='INCONCLUSIVE',
+                  baseline_source_sha256=digest(bsrc), candidate_source_sha256=digest(csrc),
+                  qsb_version=qsb_version, graphics=graphics, cases=len(cases()),
+                  result_scope='ShaderEffect pixel captures only; no whole-shell GPU time or FPS')
+    try:
+        with tempfile.TemporaryDirectory(prefix='hadanion-shader-ab-') as temporary:
+            stage = Path(temporary)
+            for label, source in (('baseline', bsrc), ('candidate', csrc)):
+                folder = stage / label
+                folder.mkdir(mode=0o700)
+                src = folder / 'WaterDropletMaterial.frag'
+                src.write_bytes(source)
+                target = folder / 'WaterDropletMaterial.frag.qsb'
+                run_checked(['qsb', '--qt6', '-o', str(target), str(src)])
+                report[label + '_qsb_sha256'] = digest(target.read_bytes())
+                dump = run_checked(['qsb', '-d', str(target)])
+                if 'Fragment' not in dump or 'GLSL' not in dump:
+                    raise RuntimeError('qsb_package_incompatible_with_opengl:' + label)
+                report[label + '_qsb_inspection_sha256'] = digest(dump.encode('utf-8'))
+            if args.mode == 'self' and report['baseline_qsb_sha256'] != report['candidate_qsb_sha256']:
+                raise RuntimeError('same_source_qsb_not_deterministic')
+            if args.mode == 'compare':
+                control = json.loads(args.control_report.read_text(encoding='utf-8'))
+                if not qualified_control(control, report['baseline_source_sha256'],
+                                         report['baseline_qsb_sha256'], qsb_version, graphics):
+                    raise RuntimeError('control_report_does_not_qualify_current_baseline')
+            stage.joinpath('shell.qml').write_text(QML.replace('CASES', json.dumps(cases())), encoding='utf-8')
+            env = dict(os.environ)
+            for key in ('DISPLAY', 'NIRI_SOCKET', 'INIR_COMPANIOND',
+                        'QML_IMPORT_PATH', 'QML2_IMPORT_PATH', 'QS_CONFIG_PATH', 'QS_CONFIG_NAME'):
+                env.pop(key, None)
+            for sub in ('config','cache','data','state'):
+                (stage / sub).mkdir(mode=0o700)
+                env['XDG_' + sub.upper() + '_HOME'] = str(stage / sub)
+            env.update(QT_QPA_PLATFORM='wayland', QSG_RHI_BACKEND=args.graphics,
+                       QT_QUICK_BACKEND='rhi', HADANION_SHADER_AB_OUT=str(output),
+                       QS_NO_RELOAD_POPUP='1')
+            with (output / 'capture.log').open('x', encoding='utf-8') as log:
+                process = subprocess.Popen(['dbus-run-session', '--', 'qs', '--path', str(stage / 'shell.qml')],
+                                           cwd=stage, env=env, stdin=subprocess.DEVNULL,
+                                           stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+                try:
+                    try:
+                        rc = process.wait(timeout=75)
+                    except subprocess.TimeoutExpired:
+                        rc = 124
+                finally:
+                    if process.poll() is None:
+                        os.killpg(process.pid, signal.SIGTERM)
+                        process.wait(timeout=5)
+            log_data = (output / 'capture.log').read_text(encoding='utf-8', errors='replace')
+            if rc != 0 or 'HADANION_SHADER_AB_CAPTURE_OK:' + str(len(cases())) not in log_data:
+                raise RuntimeError('qml_capture_failed:exit=%d' % rc)
+            if any(x in log_data for x in BAD_LOG):
+                raise RuntimeError('qml_shader_or_binding_error')
+            report['comparison'] = compare_pngs(output, cases())
+            report['status'], exit_code = classify(args.mode, report['comparison'])
+            report['elapsed_capture_wall_seconds_not_gpu_time'] = round(time.monotonic() - started, 3)
+    except (OSError, ValueError, subprocess.SubprocessError, RuntimeError) as error:
+        report['status'] = 'INCONCLUSIVE'
+        report['error'] = str(error)[:450]
+        exit_code = 2
+    (output / 'result.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+    print('HADANION_SHADER_AB_' + report['status'] + ' ' + str(output / 'result.json'))
+    raise SystemExit(exit_code)
+
+
+if __name__ == '__main__':
+    main()
