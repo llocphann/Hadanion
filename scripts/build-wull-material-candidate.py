@@ -3,10 +3,12 @@
 from pathlib import Path
 import sys
 
+ROOT = Path(__file__).resolve().parents[1]
+
 if len(sys.argv) != 2:
     raise SystemExit("usage: build-wull-material-candidate.py OUTPUT")
 
-src = Path("modules/abyss/companion/WaterDropletMaterial.frag")
+src = ROOT / "modules/abyss/companion/WaterDropletMaterial.frag"
 text = src.read_text(encoding="utf-8")
 old = """            float along=dot(bubble-surface,internal);
             float offset=length(surface+internal*along-bubble);
@@ -36,4 +38,6 @@ if text.count(old) != 1:
     raise SystemExit("unexpected WaterDropletMaterial bubble block")
 out = Path(sys.argv[1])
 out.parent.mkdir(parents=True, exist_ok=True)
-out.write_text(text.replace(old, new), encoding="utf-8")
+# Evidence is immutable: never overwrite a previously measured candidate.
+with out.open("x", encoding="utf-8") as stream:
+    stream.write(text.replace(old, new))
