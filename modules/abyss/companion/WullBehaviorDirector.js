@@ -102,15 +102,14 @@ function setFocus(s, category, nowMs) {
 }
 
 function resolvedAgent(s, nowMs) {
-    let working=false, needInput=false
+    let working=false, waiting=false
     for (const key of keys(s)) {
         const q=s.sessions[key]
         if (q.waiting<0 || nowMs-q.waiting<GRACE_MS)
             working=true
-        if (q.waiting>=0 && nowMs-q.waiting>=GRACE_MS && !q.nudged)
-            needInput=true
+        else waiting=true
     }
-    return {working:working,needsInput:needInput}
+    return {working:working,waiting:waiting}
 }
 
 function snapshot(s, host, nowMs) {
@@ -131,8 +130,9 @@ function snapshot(s, host, nowMs) {
         return {mode:"idle",reason:"ambient_consent_or_quiet",expression:"idle",epoch:s.epoch}
     }
     const agent=resolvedAgent(s,nowMs)
-    if (agent.working)
-        return {mode:"cowork",reason:"agent_lifecycle",expression:"working",epoch:s.epoch}
+    if (agent.working || agent.waiting)
+        return {mode:"cowork",reason:"agent_lifecycle",
+                expression:agent.working ? "working" : "thinking",epoch:s.epoch}
     if (s.focus!=="none" && s.focus!=="other" && nowMs-s.focusSince>=CONTEXT_SETTLE_MS
         && host.idle!==true)
         return {mode:"cowork",reason:"focused_app_category",expression:"working",epoch:s.epoch}
