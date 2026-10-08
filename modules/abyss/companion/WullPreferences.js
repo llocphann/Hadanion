@@ -2,7 +2,9 @@
 
 var personalities = ["calm", "balanced", "energetic"]
 var frequencies = ["always", "frequent", "occasional", "rare"]
-var qualities = ["performance", "quality"]
+// Preserve the persisted "quality" tier and add an explicit higher tier.
+// The settings labels are Performance, Balanced and Quality respectively.
+var qualities = ["performance", "quality", "detailed"]
 
 function defaults() {
     return {
@@ -32,7 +34,7 @@ function normalize(options) {
     result.translucency = bounded(source.translucency, result.translucency, 0, 0.35)
     result.personality = personalities.includes(source.personality) ? source.personality : "balanced"
     result.appearanceFrequency = frequencies.includes(source.appearanceFrequency) ? source.appearanceFrequency : "always"
-    result.renderQuality = source.renderQuality === "performance" ? "performance" : "quality"
+    result.renderQuality = qualities.includes(source.renderQuality) ? source.renderQuality : "quality"
     return result
 }
 
@@ -42,5 +44,5 @@ function motionScale(personality) {
 
 function renderTier(quality, shellQuality) {
     if (shellQuality === "performance") return 0
-    return quality === "performance" ? 0 : 1
+    return quality === "performance" ? 0 : quality === "detailed" ? 2 : 1
 }

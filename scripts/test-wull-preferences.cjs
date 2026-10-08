@@ -42,7 +42,7 @@ for (const old of ["balanced", "quality", "unknown"]) {
     assert.equal(api.normalize({renderQuality: old}).renderQuality, "quality");
     assert.equal(api.renderTier(old, "quality"), 1);
 }
-assert.deepEqual(Array.from(api.qualities), ["performance", "quality"]);
+assert.deepEqual(Array.from(api.qualities), ["performance", "quality", "detailed"]);
 const bridge = fs.readFileSync(path.join(directory, "CompanionBridge.qml"), "utf8");
 for (const name of ["boundedNumber", "sendEvent", "sendPreferences", "acceptLine"]) {
     const body = bridge.match(new RegExp("    function " + name + "\\([\\s\\S]*?\\n    \\}", "u"))?.[0];

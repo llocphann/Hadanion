@@ -40,7 +40,7 @@ ApplicationWindow {
         Text { x: 24; y: 61; text: "Actual QML renderer · same live Abyss accent · centered tip · two feet and two hands"; color: "#84adce"; font.pixelSize: 15 }
         Repeater {
             id: tiers
-            model: ["performance", "balanced", "quality"]
+            model: ["performance", "quality", "detailed"]
             Rectangle {
                 id: card
                 required property int index

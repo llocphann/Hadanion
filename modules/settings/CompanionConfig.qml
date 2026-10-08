@@ -33,7 +33,8 @@ ContentPage {
     ]
     readonly property var qualityOptions: [
         { displayName: Translation.tr("Performance"), value: "performance" },
-        { displayName: Translation.tr("Quality"), value: "quality" }
+        { displayName: Translation.tr("Balanced"), value: "quality" },
+        { displayName: Translation.tr("Quality"), value: "detailed" }
     ]
     readonly property var expressionOptions: [
         { displayName: Translation.tr("Idle"), value: "idle" },
@@ -334,7 +335,7 @@ ContentPage {
             ChoiceRow {
                 objectName: "companionQuality"
                 label: Translation.tr("Rendering quality")
-                description: Translation.tr("Performance keeps lighting simple. Quality adds reflected liquid detail.")
+                description: Translation.tr("Performance uses simpler lighting. Balanced adds liquid detail. Quality adds deeper reflections.")
                 enabled: !root.preferences.autoQuality
                 options: root.qualityOptions
                 currentValue: root.preferences.renderQuality
@@ -342,7 +343,7 @@ ContentPage {
             }
             SettingsSwitch {
                 text: Translation.tr("Follow power profile")
-                description: Translation.tr("Use Performance in Power Saver and Quality in Balanced or Performance.")
+                description: Translation.tr("Use Performance in Power Saver and Balanced in other power profiles.")
                 autoToggle: false
                 checked: root.preferences.autoQuality
                 onToggledByUser: checked => root.setPreference("autoQuality",checked)
