@@ -6,9 +6,9 @@
 
 > **Single source of truth for Wull local-AI work.** All future planning, status updates, architecture/model/runtime decisions, benchmark summaries, fine-tuning/distillation notes, rollout state, and acceptance evidence for this effort MUST be edited into this file only. Do not create another Wull-AI TODO/task-board/handoff document.
 >
-> Repository: `llocphann/Hadalis`  
-> Working branch: `dev` only; never mutate `stable`.  
-> Last pre-write repository audit HEAD: `5653fa24fb8c9e948afc3337826581da190e6325`.
+> Repository: `llocphann/Hadanion` — active Companion AI source and TODO.  
+> Working branch: `main` for Hadanion. Hadalis `dev` retains shared AI/host integration; never mutate Hadalis `stable`.  
+> Imported Hadalis historical task snapshot: `5653fa24fb8c9e948afc3337826581da190e6325`; this SHA is **not** current Hadanion baseline.
 >
 > This file is the only **planning/status** document for Wull AI. Normal implementation source, tests, fixtures and generated benchmark outputs may exist elsewhere in the repository as needed; they must not become competing planning documents.
 >
@@ -102,6 +102,14 @@ Implementation starts at `c9ee3b78fc57d6fbf612db753ad58861f92e8af8`. The staged 
 
 
 ---
+
+### 0.4 Mak1zu comparison and source-only rollout boundary (2026-10-09)
+
+- **Pinned upstream audit, not marketing parity:** [Mak1zu comparative source study](../../docs/COMPANION_MAK1ZU_RESEARCH_20261008.md) uses upstream `snowarch/mak1zu main@a30fef7cc10324684fd4ae9123d9c29cbd00ca9e`. Mak1zu is a Go conversational engine for Discord/CLI/web, **not** a Quickshell 3D avatar renderer. Hadanion retains Qt/QML + Rust and Hadalis's shared AI/session backend; do not start a second Go daemon, import Mak1zu artwork/persona, enable Discord, or duplicate chat panel.
+- **Source-only work performed:** [bounded aggregate-only Aqua/Octo voice evaluator](../../scripts/wull-companion-voice-eval.py), [synthetic 14-case matrix](../../scripts/fixtures/hadanion-voice-scenarios.json), [model-free evaluation tests](../../scripts/test-wull-companion-voice-eval.py), [QML shared/local reply guard](../../services/WullReplyGuard.js), [local-helper reply guard](../../scripts/wull/reply_guard.py) applied before SQLite writes, and [Node](../../scripts/test-wull-reply-guard.cjs)/[Python](../../scripts/test-wull-reply-guard-local.py) guard checks. CI has offline tests; these do not prove real local-model voice, UI, mood, or permission acceptance.
+- **Verified already present at baseline:** `WullMind.sendMessage()` uses Hadalis `Ai.createTextSession`; text + expression output, bounded old chat history and SQLite WAL, deterministic host animation, local GGUF helper, bounded journal integration, reminders and manual mode. Do **not** confuse history with Mak1zu's source-aware memory/person ledger.
+- **Still missing as Mak1zu-class capabilities:** consented, inspectable, source-scoped and erasable long-term memory; actual voice/persona quality on pinned models in EN/VN; measured provider/context budget; quiet hours + dismissal/backoff policy (with user approval and deterministic clock fixtures); every-route live output guard QA; no silent model-generated desktop mutation; side-effect receipts. Optional night diary, generated skills, Discord/MCP, model persona distillation and broad agent tools are **not pre-approved**. Hard model/GPU profiling and local policy verification must remain OPEN.
+- **Follow-up sequence:** First verify full Hadanion validator + changed QML guard through Qt/Niri host (and G0/G1 renderer gates separately); then run synthetic voice cases with explicitly selected local/shared model and consent; only then design **separate opt-in** memory/proactive implementation backed by migrations, tests and approved UX. Do not call optional code-only scaffolding "feature completed" without integration receipts.
 
 ## 1. Product objective
 
