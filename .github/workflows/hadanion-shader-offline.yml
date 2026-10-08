@@ -16,6 +16,8 @@ on:
       - 'modules/abyss/companion/WullBehaviorDirector.js'
       - 'scripts/test-wull-behavior-director.cjs'
       - 'services/WullPersona.js'
+      - 'scripts/wull/persona.py'
+      - 'scripts/test-wull-local-persona.py'
       - 'scripts/test-wull-persona.cjs'
       - 'scripts/wull/local_mind.py'
       - 'scripts/test-wull-reply-guard-local.py'
@@ -48,6 +50,8 @@ on:
       - 'modules/abyss/companion/WullBehaviorDirector.js'
       - 'scripts/test-wull-behavior-director.cjs'
       - 'services/WullPersona.js'
+      - 'scripts/wull/persona.py'
+      - 'scripts/test-wull-local-persona.py'
       - 'scripts/test-wull-persona.cjs'
       - 'scripts/wull/local_mind.py'
       - 'scripts/test-wull-reply-guard-local.py'
@@ -89,6 +93,8 @@ jobs:
               'scripts/wull/memory_store.py',
               'scripts/test-wull-memory-store.py',
               'scripts/wull/local_mind.py',
+              'scripts/wull/persona.py',
+              'scripts/test-wull-local-persona.py',
               'scripts/test-wull-reply-guard-local.py',
               'scripts/test-wull-companion-voice-eval.py',
               'scripts/test-wull-g1-resource-contract.py',
@@ -115,6 +121,7 @@ jobs:
           node scripts/test-wull-proactive-policy.cjs
           node scripts/test-wull-behavior-director.cjs
           node scripts/test-wull-persona.cjs
+          python3 scripts/test-wull-local-persona.py
       - name: Check immutable candidate build and exact source
         run: |
           python3 - <<'PY'
