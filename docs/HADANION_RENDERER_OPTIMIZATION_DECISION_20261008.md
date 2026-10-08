@@ -1,0 +1,96 @@
+# Hadanion — pre-implementation renderer optimization decision
+
+Date: 2026-10-08. **Status: research/design only, OPEN; no runtime, shader, compiled .qsb, test or host code modified by this document.**
+
+Source reviewed: Hadanion \`main@bd5281d4f27a91c611e741d13225b76b3d7dc228\`; Hadalis host \`dev@d31e54b9e7444c623f185b4d740344040a39b62a\`. Re-pin both immediately before measurement/implementation: prior SHAs are **research snapshots**, not current production or physical-desktop acceptance. This is a technical study subordinate to [the single active Companion TODO](../to-do/cloud-bot/ABYSS_WATER_DROPLET_COMPANION.md); it is **not a second task board**. [Host/API ownership](HADALIS_EXTRACTION.md). Hadanion owns Aqua/Octo shaders, motions, tests and renderer; Hadalis owns shared Abyss fields, optional host surfaces, compositor, theme and desktop-wide optimization research.
+
+## Decision and exclusions
+
+**Prefer optimized existing Qt Quick ShaderEffect implicit-volume 3D, with a single actor and existing Blender-authored F-curves.** Do not migrate to standalone 2D sprites, separate 2.5D/3D actors, external Qt Quick 3D/mesh engines, a new render daemon/window, continuous hidden renderers or a new full-screen capture. Do not rewrite all 60 authored Aqua/Octo clips or alter the 5.6-second sequential cast. Portals remain long-distance travel presentation only.
+
+Candidate order: (0) repair measurement / shader A/B oracle; (1) instrument baseline; (2) strict-lossless cost removal in existing shaders; (3) costly Octo paths when profiling warrants; (4) material-only approximation with explicitly approved visual budget if necessary; (5) multi-renderer hybrid **only after measured alternatives fail**. No user-visible quality reduction is allowed to masquerade as strict-lossless.
+
+No actual GPU/CPU/PSS/VRAM/frame-time gain has been measured for this research. No hypothetical percentages are baseline results.
+
+## Source-grounded findings and existing optimizations
+
+| Source | Observed implementation | Implication |
+| --- | --- | --- |
+| \`modules/abyss/companion/WaterDropletMaterial.frag\` (blob \`adead3c2\`) | Front interface has analytic path for \`abs(pose.x)<0.00001\`; pitched bodies use 24/32/40 coarse samples plus 7 refinements for tier 0/1/2. \`backInterface\` uses 10/18/28 samples plus 3/5/7 refinements. Material also does Fresnel, internal/reflected light, volume attenuation and optional bubble rays (0/18/48 candidates by tier). | Count shader operations, but do **not** assert actual executed work, CPU saving or whole-GPU benefit without GPU capture. Preserve front/back geometry and medium appearance. |
+| \`modules/abyss/companion/OctoTentacle.frag\` (blob \`60d7032\`) | Front ray tests eight curved tapered sections; \`field()\` traverses eight segments; \`normalAt()\` performs 6 field evaluations via finite differences; back tracing can execute up to 12 field steps + 3 refinements. | Potentially intensive *per-fragment* work, but each tentacle has a bounded painted region and tier-0 uniform. Profile actual pixels/overdraw before algebraic or analytic-normal changes. |
+| \`modules/abyss/companion/OctoTentacles.qml\` (blob \`a6f7767\`) | A four-tentacle octopus body; when Aqua is pulled, two front and two rear tentacles are instantiated by gated Loaders. Clip projections/Bezier controls feed ShaderEffects; UI owns z-order. | Preserve 4 arms, 16 cups, opaque body-facing overlap and 3D coil around Aqua. Avoid new timers and geometry rebuilds for faux-2.5D layers. |
+| \`modules/abyss/companion/WaterDropletBody.qml\` (blob \`6be24fc\`) | Logical body is 76x92. Torso keeps selected quality, tiny limbs/orbit droplets already use tier 0. Reflection ShaderEffectSource is 76x82, live only while visible/grounded/detailed. Hidden motion gates and software fallback already exist. | No duplicate optimization credit for tier-0 limbs, existing visibility gates or reduced floor capture; an extra offscreen capture would be a possible regression. Source texture dimensions do not bound all driver VRAM allocations. |
+| \`modules/abyss/companion/WullPreferences.js\` (blob \`c34f118\`) | Actual user choices performance/quality produce tier 0 or 1; tier-2 shader branch is not presently selected by this policy. | Never attribute hypothetical tier-2 cost to normal production. |
+| \`modules/abyss/companion/WullMotion.qml\` (blob \`f8e31e2\`) | Single local loop clock and shared finite progress; visibility/motion eligibility affects animation weight. | Switching whole body instances by Loader or visibility may reset phase/weight; keep one motion owner. |
+| \`scripts/build-wull-material-candidate.py\` (blob \`184e318\`) | Existing isolated source candidate skips radius, distance and exponentials for bubbles whose projection is outside the closed ray segment. | Best early low-risk **experiment**, not a proven optimization: compile separately, verify finite/NaN and boundary semantics, image parity and GPU time. |
+| \`scripts/validate.py\` (blob \`7af3d22\`) | \`make test HADALIS_ROOT=...\` builds Rust and runs selected component/regression tests inside a private host overlay, plus QML format checks. | **It does not automatically dispatch every legacy render-cost, spatial-volume or shader-parity script.** Include explicit opt-in renderer checks in the gate; a skip for missing Wayland is not a GPU PASS. |
+
+**Critical test-oracle gap (BLOCKER 0).** \`scripts/wull-verify-lossless-render.py\` compares historical and current *WaterDropletBody.qml* and hashes those QML sources, but stages the current \`WaterDropletMaterial.frag.qsb\` into the baseline directory (with other current dependencies). Its reference captures do **not** independently pin a historical shader binary, so success cannot certify that a **changed shader** matches the old shader. \`--self-control\` is a useful capture qualification only. Before shader optimization, implement an isolated source- and binary-pinned dual-material A/B harness; do not weaken the comparator to obtain a PASS. Historical identical-source mismatch remains an explicit possible INCONCLUSIVE outcome.
+
+**Other baseline trap.** A \`.frag\` text edit does not change the shipped \`.frag.qsb\` automatically. Candidate source, compiled QSB, build flags, qsb/Qt version and active runtime package must each be hashed/verified; test a deliberate shader perturbation to prove the oracle catches a change. Do not commit source-only changes that leave stale QSB bytes in the installed payload. Qt's QSB packages can contain multiple graphics-backend shader variants; capture backend identity and preserve supported targets.
+
+## Measurement design: isolated Companion and real host
+
+### B0 — pin identity and ensure valid signals
+
+- Record immutable Hadanion and compatible Hadalis host commit SHAs, manifest/payload SHA, compiled QSB hashes, kernel/compositor, Qt + Quickshell, GPU vendor/driver, backend (OpenGL/Vulkan), power profile, scale/DPR, refresh, output topology and display mode. No default-branch or historic Hadalis source may silently substitute for Hadanion.
+- A control/measurement harness must demonstrate it can distinguish identical-source PASS from a deliberate known shader perturbation FAIL and a missing/inconclusive graphics capture. A screenshot or fixture only proves its own bounded case, never physical pointer, performance or full-output acceptance.
+- GPU timing: collect Qt scene-graph timing (\`QSG_RENDER_TIMING=1\`) and batching (\`QSG_RENDERER_DEBUG=render\`) as diagnostic signals; where supported, enable timestamp sampling (\`QSG_RHI_PROFILE=1\`) and an appropriate GPU profiler/frame capture. Qt RHI GPU timestamps may be unavailable on some backends/drivers and usually describe command buffers, **not** the time spent solely inside one shader. Disentangle by controlled A/B variants; do not equate FPS, GPU utilization %, scene-graph CPU duration, or draw count with Companion GPU milliseconds.
+- Measure *two separate costs*: (a) bounded isolated per-actor shader/render workload under identical synthetic motion, plus (b) **incremental end-to-end Hadalis shell cost** in a compatible live host. The latter must include compositor effects and floor capture, and compare disabled, enabled-but-hidden, and visible across real scene states.
+
+### B1 — reproducible state matrix
+
+Minimum paired scenarios: Companion OFF, configured but invisible, Aqua idle, walk/run, fly/jump, strongly pitched faceplant/backside fall, Aqua on each of four edges/corners, Octo idle, moving tentacles, Octo/Aqua grip-pull and sequential handoff, theme retint, translucency boundaries, quality tier 0 and tier 1, detailed effects toggles, reduced motion, loss of graphics API/software fallback, fullscreen/modal policy, resize/scale/output switch and restart/suspend as real-session gates.
+
+Use deterministic finite motion phases and explicitly qualified clips. For image A/B, capture before/after from independently staged baseline/candidate shader source **and distinct QSB** under identical uniforms/theme, background, resolution, alpha state, orientation and present-frame readiness. Include shader-only captures and a final host composite; preserve transparent pixels and premultiplication. An unchanged PNG does not prove an unchanged algorithm for all phases.
+
+### B2 — paired repeatability, reporting and attribution
+
+Warm both variants equivalently; run at least 5 A/B paired repetitions per key motion state (randomized AB/BA order), with enough frames for stable p50/p95/p99 and confidence intervals. Record per-state sample count, median/p95/p99 frame interval and GPU-time signal (with API/scope named), CPU time/wakeups, PSS/RSS, GPU allocation/residency when observable, draw submissions/scenegraph batches, startup-to-first-presented-frame and idle power if measurable. Separate idle/off and visible averages by observed duty cycle, not guesses.
+
+Do not run heavy profiling/logging in the primary timing sample; use a separate instrumented pass. Run negative controls (no actor / static actor, same-renderer A/A) to expose drift and overhead. Record aborted/unsupported metrics as NOT_MEASURED or INCONCLUSIVE, never zero.
+
+## Candidate queue and controlled experiments
+
+| ID | Experiment | Why | Fidelity risk | Gate |
+| --- | --- | --- | --- | --- |
+| E0 | Build the shader-aware dual-QSB capture + timing harness; verify A/A and deliberate-difference controls | Eliminates false lossless claims | None to production | Mandatory first |
+| E1 | Existing bubble-ray segment-gating candidate, from \`build-wull-material-candidate.py\` | Small bounded change with visible upstream candidate; avoids part of work for bubbles outside ray interval | Low-to-medium; floating-point boundaries, NaN, divergence, early-outs need tests | Tier-1/effects-on image oracle, GPU timing; reject if not measurably better |
+| E2 | Reduce repeat coordinate transforms/uniform-invariant work inside \`field()\`, \`modelPoint()\`, \`normalAt()\`, and reflection paths; inspect optimized shader bytecode first | \`field\` is called repeatedly in front/back tracing and normals | Medium: reordered float operations may shift normals/pixels | Per-state A/B, angle extremes, silhouette, reflection and strict exact-color oracle |
+| E3 | \`backInterface\` interval/bracketing improvements or mathematically equivalent bounded special cases | Repeated refraction/exiting work, particularly tilted body | High: steps have optical significance and different materials share path | Precise front/back path + near-tangent/high-pitch optical regression; no blind step reduction |
+| E4 | Octo shader: share per-fragment curve-segment math or test analytically derived per-segment normals with controlled boundaries | Six finite-difference field probes with eight-segment evaluation are candidates | High: joins/cups/occlusion may shift | Octo close-up + all four rims + grip z-order + α=opaque interior |
+| E5 | Specialized shader packages for eye, foot, sphere or volume only **if E1–E4 and profiler warrant** | Uniform-driven branches might block compiler optimization | Medium-high: more QSBs, driver pipelines and first-use hitch | Variant-count, QSB size, compile/pipeline cache, first-frame and package audit |
+| E6 | Material-only precomputed lighting/thickness / minimal 2.5D inside existing actor | Optional fallback if proven 3D savings inadequate | Intentionally different pixels for changing pitch/theme | Explicit maintainer approval for a visual budget and measurable end-to-end savings |
+| E7 | Dynamic per-animation 2D/2.5D/3D renderer swap | Last resort, not approved for production | Very high; pose/input/reload/VRAM/latency | Separate architecture RFC only if E0–E6 do not achieve the pre-agreed goal |
+
+Do not implement candidates in parallel. Each is separately source-pinned, measured, reviewed and either promoted or rejected before the next. Candidate E1 is **not** automatically the largest hotspot; execution priority after E0 must be revisited using measured E0/B1 evidence.
+
+### Specific hard constraints for source changes
+
+- Do not remove live themed refraction, transparency, glossy cornea, soft reflections, 3D volume through pitch/yaw/roll, optical bubble detail, 4 opaque Octo tentacles/16 cups or handoff/grip behavior simply to improve numbers.
+- Any replacement must preserve the public QML/IPC contract, actor bounds, event timing, surface attachment, input passthrough and fallback. The optimization scope must not extend into Hadalis-owned \`AbyssField.frag\` by accident.
+- Avoid extra ShaderEffectSource/layer captures, sprite atlases, hidden parallel renderers, scene/item proliferation and CPU-side Bezier reconstruction by default. Test driver-specific changes rather than assuming a shorter GLSL shader compiles to fewer instructions.
+- Beware \`Shape\`/fallback shader updates; a lower GPU arithmetic count that increases QML binding/geometry churn is not a win.
+- There is no general proof that analytic derivatives of the rounded droplet, tapered tubes or interface distances produce byte-identical pixels. Such candidates are numerical experiments, not pre-approved strict-lossless replacements.
+
+## Acceptance gates before production rollout
+
+**G0 / tooling:** Hadanion render oracle captures independently pinned baseline and candidate QSB. Same-source control behaves, deliberate shader difference is detected; binary/source/host/backend identification is complete. Existing source-only regression checks retained.
+
+**G1 / baseline:** Comparable source-pinned Companion and shell measurements exist for idle, ordinary animation and spatial/Octo worst-case; estimate workload fraction and ambient variability. Decide *before candidate measurement* what gain is material relative to instrument noise and resource tradeoffs (an initial signal is >=10% isolated Companion median GPU-time improvement **and** above 2x A/A noise, but do not treat this arbitrary screening target as a verified guarantee).
+
+**G2 / visual:** All required variants/poses are verified with the new shader-aware oracle. Strict-lossless means exact approved oracle equivalence on specified captures and no new visual behavior; if a controlled visual difference is accepted instead, log explicit owner approval and label it **quality/performance tradeoff**, not strict-lossless. Check RGB, alpha, edge, theme, 3D roll, eyes, droplets, caustics, Octo grips and scene composite. INCONCLUSIVE cannot be promoted.
+
+**G3 / engineering:** Targeted source-independent tests, all Hadanion validator checks (\`make test HADALIS_ROOT=/path/to/Hadalis\`; optionally \`--require-clean\` after commit), and explicit legacy volume/spatial/cast/render-cost tests where available, with real Wayland rather than SKIP. Shader source and binary have correct packaged hashes. No new runtime loader/daemon/material error, p95/p99 hitch, CPU/RAM/VRAM regression beyond measured noise, startup penalty or idle wakeups.
+
+**G4 / desktop:** Maintainer-observed live Niri/Quickshell, four rims/corners, supported shared surfaces, popup/chat/drag/input, dynamic themes, multiple outputs/DPR/hotplug, sleep-resume and fullscreen/permission precedence. A private QML scene proves neither live host interactivity nor desktop-safe Region.
+
+**G5 / decision:** Publish exact baseline and candidate SHA + metrics + raw artifact provenance + acceptance status + gains **for Companion and whole desktop separately**. Promote only if improvement exceeds noise and useful target without regressing more important metrics; otherwise **stop, retain single 3D renderer, and consider Hadalis's independently owned full-screen/Abyss optimizations**. Maintain a clean rollback to the last known-good Hadanion release through the existing immutable release/current-link design; no mandatory install/restart during tests.
+
+## Tooling and references
+
+- Hadanion build and isolated tests: [Makefile](../Makefile), [scripts/validate.py](../scripts/validate.py), [scripts/wull-verify-lossless-render.py](../scripts/wull-verify-lossless-render.py), [scripts/build-wull-material-candidate.py](../scripts/build-wull-material-candidate.py), [scripts/test-companion-volume.py](../scripts/test-companion-volume.py), [scripts/test-companion-cast.py](../scripts/test-companion-cast.py), [scripts/test-wull-spatial-volume.py](../scripts/test-wull-spatial-volume.py), [scripts/test-wull-render-cost-contract.py](../scripts/test-wull-render-cost-contract.py).
+- Qt documentation: [ShaderEffect QSB and uniform semantics](https://doc.qt.io/qt-6/qml-qtquick-shadereffect.html); [QSB baking and variant inspection](https://doc.qt.io/qt-6/qtshadertools-qsb.html); [scene-graph batching, timing and debug](https://doc.qt.io/qt-6/qtquick-visualcanvas-scenegraph-renderer.html); [GPU RHI timestamp prerequisites](https://doc.qt.io/qt-6/qquickgraphicsconfiguration.html); [ShaderEffectSource memory/performance](https://doc.qt.io/qt-6/qml-qtquick-shadereffectsource.html).
+- The [Hadalis strict-lossless audit](https://github.com/llocphann/Hadalis/blob/dev/docs/optimization/STRICT_LOSSLESS_GPU_RAM_CPU_AUDIT.md) already has a profile-first Aqua/Octo caution (historical R32.5); future **Companion** findings belong here/Hadanion, while full-desktop shared render-graph findings stay in that audit.
+
+**Next authorized work if implementation is requested:** implement only G0/B0 dual-QSB controls and baseline instrumentation in test tooling. No production shader, QML actor, feature, or Hadalis host change until that evidence is available.
