@@ -27,6 +27,7 @@ import obsidian_daily_todo as daily
 import obsidian_todo as core
 from gguf_runtime import complete as gguf_complete,RuntimeErrorLocal
 import history_store
+from reply_guard import public_text, UnsafeReply
 
 EXPRESSIONS={'idle','happy','excited','thinking','working','surprised','sleepy','sad','alert'}
 THINKING_EFFORTS={
@@ -323,7 +324,8 @@ def chat(options):
     except ValueError:raise MindError('invalid_response','Local model did not return the requested reply format')
     text=parsed.get('text') if isinstance(parsed,dict) else None
     if not isinstance(text,str) or not text.strip():raise MindError('empty_reply','Local model returned an empty reply')
-    text=re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]','',text).strip()[:420]
+    try:text=public_text(text)
+    except UnsafeReply:raise MindError('unsafe_reply','Local model returned an invalid reply')
     expression=parsed.get('expression','idle')
     user_message_id=0;assistant_message_id=0
     if persist_history and history_saved:
