@@ -33,8 +33,17 @@ with tempfile.TemporaryDirectory(prefix="hadanion-host-") as temporary:
     private = Path(temporary)
     shell = private / "shell"
     shell.mkdir()
-    for name in ("modules", "services", "scripts", "defaults", "translations", "assets", "qmldir", "GlobalStates.qml", "optional"):
+    for name in ("scripts", "defaults", "translations", "assets", "qmldir", "GlobalStates.qml"):
         (shell / name).symlink_to(ROOT / name)
+    # The shipping core has no original Companion directory or singleton.
+    # Discover the installed release outside the host tree, without test aliases.
+    shutil.copytree(ROOT / "modules", shell / "modules",
+                    ignore=lambda directory, names: ["companion"] if Path(directory) == ROOT / "modules/abyss" else [])
+    shutil.copytree(ROOT / "services", shell / "services", ignore=shutil.ignore_patterns("WullMind.qml"))
+    release = private / "data/hadanion/releases/fixture"
+    release.parent.mkdir(parents=True)
+    shutil.copytree(ROOT / "optional/hadanion", release)
+    (release.parent.parent / "current").symlink_to("releases/fixture")
     config = private / "config/illogical-impulse"
     config.mkdir(parents=True)
     options = json.loads((ROOT / "defaults/config.json").read_text())
@@ -82,6 +91,8 @@ ShellRoot {
             if (++root.ticks>120) {root.fail("timeout");return}
             if (!Config.ready || !Hadanion.available) return
             if (root.step===0) {
+                if (Hadanion.packageRoot.indexOf("/data/hadanion/releases/")<0)
+                    {root.fail("package loaded through a host-tree alias");return}
                 if (Hadanion.session!==null || surface.extension!==null || surface.inputRegions.length)
                     {root.fail("disabled package owns runtime/input");return}
                 Config.setNestedValue("abyss.companion.enabled",true);root.step=1
@@ -147,4 +158,4 @@ ShellRoot {
         assert peak == 1 and native_pids, f"one native owner expected: peak={peak}"
         assert all(not Path(f"/proc/{pid}").exists() for pid in native_pids), "a native process survived unload"
 
-print("PASS: actual package/session/output/settings load, default-off, enable/disable/refresh and exactly one reaped native owner")
+print("PASS: external installed package/session/output/settings without core aliases, default-off, enable/disable/refresh and exactly one reaped native owner")

@@ -58,11 +58,13 @@ def main():
     host = args.hadalis_root.resolve()
     if not (host / "services/Hadanion.qml").is_file():
         raise SystemExit("Hadalis host API 1 source is required")
+    revisions = {}
     for name, repo in (("Hadanion", ROOT), ("Hadalis", host)):
         revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True)
         status = subprocess.run(["git", "status", "--porcelain", "--untracked-files=all"], cwd=repo, capture_output=True, text=True)
         dirty = bool(status.stdout.strip())
         sha = revision.stdout.strip() if revision.returncode == 0 else "uncommitted import"
+        revisions[repo] = sha
         print(name + " source: " + sha + (" WORKING TREE" if dirty else " committed"), flush=True)
         if args.require_clean and (revision.returncode or dirty):
             raise SystemExit("Exact committed source is required")
@@ -74,6 +76,7 @@ def main():
         # A per-run isolated user package is essential when validating on a machine
         # where another Hadanion release may already be installed.
         environment["HADANION_TEST_HOST"] = str(work)
+        base_environment = environment.copy()
         checks += [["node", str(path.relative_to(ROOT))] for path in sorted((ROOT / "scripts").glob("test-*.cjs"))]
         checks += [["python3", "scripts/" + name] for name in (
             "test-package-lifecycle.py", "test-host-runtime.py", "test-wull-local-mind.py",
@@ -87,6 +90,9 @@ def main():
             raise SystemExit("Qt qmlformat is required")
         product_qml = list((ROOT / "modules").rglob("*.qml")) + list((ROOT / "services").rglob("*.qml")) + [ROOT / "HadalisSession.qml", ROOT / "HadalisOutput.qml"]
         checks += [[qml_parser, str(path)] for path in sorted(product_qml)]
+        labels = {Path(command[1]).name if command[0] != "cargo" else "Rust behavior/protocol tests" for command in checks}
+        if args.only and set(args.only) - labels:
+            raise SystemExit("Unknown checks: " + ", ".join(sorted(set(args.only) - labels)))
         passed = failed = skipped = 0
         native_spec = importlib.util.spec_from_file_location("native_session", work / "scripts/native_test_session.py")
         native_session = importlib.util.module_from_spec(native_spec)
@@ -97,25 +103,40 @@ def main():
         # user's pointer/focus or another concurrently running host validator.
         with native_session.private_wayland(session_root) as native_environment:
             if native_environment:
-                environment.update(native_environment)
+                for key in ("WAYLAND_DISPLAY", "NIRI_SOCKET", "QT_QPA_PLATFORM",
+                            "XDG_CONFIG_HOME", "XDG_STATE_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME"):
+                    environment[key] = native_environment[key]
+                for key in ("QS_CONFIG_NAME", "QS_CONFIG_PATH", "QS_MANIFEST"):
+                    environment.pop(key, None)
             for command in checks:
-                    label = Path(command[1]).name if command[0] != "cargo" else "Rust behavior/protocol tests"
-                    if args.only and label not in args.only:
-                        continue
-                    result = subprocess.run(command, cwd=work, env=environment, stdout=subprocess.PIPE,
-                                            stderr=subprocess.STDOUT, text=True, timeout=180)
-                    skipped_check = result.returncode == 77 or result.stdout.lstrip().startswith("SKIP:")
-                    print(("SKIP " if skipped_check else "PASS " if result.returncode == 0 else "FAIL ") + label, flush=True)
-                    if skipped_check:
-                        skipped += 1
-                        continue
-                    if result.returncode:
-                        failed += 1
-                        print(result.stdout[-12000:], flush=True)
-                    else:
-                        passed += 1
-                        if command[0] != qml_parser:
-                            print(result.stdout[-1200:], flush=True)
+                label = Path(command[1]).name if command[0] != "cargo" else "Rust behavior/protocol tests"
+                if args.only and label not in args.only:
+                    continue
+                # These fixtures already create their own private compositor.
+                # Avoid nesting them inside a second test compositor/viewport.
+                run_environment = base_environment if label in (
+                    "test-host-runtime.py", "test-wull-immersion-runtime.py") else environment
+                result = subprocess.run(command, cwd=work, env=run_environment, stdout=subprocess.PIPE,
+                                        stderr=subprocess.STDOUT, text=True, timeout=180)
+                skipped_check = result.returncode == 77 or result.stdout.lstrip().startswith("SKIP:")
+                print(("SKIP " if skipped_check else "PASS " if result.returncode == 0 else "FAIL ") + label, flush=True)
+                if skipped_check:
+                    skipped += 1
+                    continue
+                if result.returncode:
+                    failed += 1
+                    print(result.stdout[-12000:], flush=True)
+                else:
+                    passed += 1
+                    if command[0] != qml_parser:
+                        print(result.stdout[-1200:], flush=True)
+        if args.require_clean:
+            for repo, original in revisions.items():
+                final = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+                dirty = subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=all"], cwd=repo, text=True)
+                if final != original or dirty.strip():
+                    failed += 1
+                    print("FAIL source changed during validation: " + str(repo), flush=True)
         print(f"Hadanion checks: {passed} PASS / {failed} FAIL / {skipped} SKIP", flush=True)
         raise SystemExit(bool(failed))
 
