@@ -5,12 +5,32 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 tool = ROOT / "scripts/wull-shader-ab.py"
 spec = importlib.util.spec_from_file_location("shader_ab", tool)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
+
+# Qt versions differ in qsb CLI sugar; both paths must emit QtQuick variants.
+for help_text, expected in (
+    ("--qt6 --glsl --hlsl --msl", ["--qt6"]),
+    ("--glsl --hlsl --msl", ["--glsl", "100 es,120,150", "--hlsl", "50", "--msl", "12"]),
+):
+    with patch.object(module.subprocess, "run",
+                      return_value=SimpleNamespace(returncode=0, stdout=help_text, stderr="")):
+        assert module.qsb_flags("qsb") == expected
+for help_text, code in (("unrecognized", 0), ("--qt6", 1)):
+    with patch.object(module.subprocess, "run",
+                      return_value=SimpleNamespace(returncode=code, stdout=help_text, stderr="")):
+        try:
+            module.qsb_flags("qsb")
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("unsupported qsb variant set must fail closed")
 
 assert len(module.cases()) >= 10
 assert {"aqua_faceplant", "octo_head", "cornea", "foot", "aqua_theme_shift"} <= {
