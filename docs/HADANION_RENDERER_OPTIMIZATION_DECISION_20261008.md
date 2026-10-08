@@ -93,6 +93,18 @@ Do not implement candidates in parallel. Each is separately source-pinned, measu
 
 The harness stages two different QSB locations in one temporary, private Quickshell window; each is produced with `qsb --qt6` from an explicitly hashed shader source. It samples 12 material/pose/theme combinations, compares unmodified RGBA pixels, checks for non-empty baseline captures and records QSB hashes, qsb version, backend/Wayland handle, Qt logs and failure categories. It requires a prior **qualifying A/A** result before negative testing, and requires **both** qualifying A/A and deliberately different-shader control results before real candidate comparisons. Comparison is **shader-only** (not full WaterDropletBody composition, no 60-clip claim, no live compositor input proof). A successful single QML capture is not a frame-time benchmark.
 
+### One-command local chatbot qualification (preferred)
+
+The future local chatbot can run the **single, read-only-to-production** command below from a clean Hadanion checkout after activating a supported Wayland session. It runs A/A → deliberate negative → independently baked bubble-ray candidate A/B, stops at the first invalid stage, and keeps evidence private. It neither installs a release nor changes the Hadanion runtime.
+
+```bash
+python3 scripts/wull-shader-ab-sequence.py \
+  --output "$HOME/.local/state/hadanion/shader-ab/$(date +%Y%m%d-%H%M%S)" \
+  --graphics opengl --diagnostics
+```
+
+Review `sequence.json` and per-stage `result.json` before accepting any conclusions. A nonzero exit is **not** permission to weaken image checks or run the candidate in production. Exit 1 denotes observed candidate pixel differences; exit 2 denotes an inconclusive stage; exit 0 proves only the captured shader samples are equal **with both controls qualified**. Graphics API mismatch, lack of frames queued for presenting, empty alpha, identical images across deliberately changed poses/theme, stale controls and missing dependencies fail closed. Actual whole-session/GPU performance remains G1, not part of this G0 sequence.
+
 ### Exact interactive GPU qualification commands
 
 Run from a current clean Hadanion checkout with `WAYLAND_DISPLAY`, `XDG_RUNTIME_DIR`, `qs`, `qsb`, `dbus-run-session` and Python Pillow available. Prefer Hadanion's ordinary source checkout, *not* an installed runtime or the historical Hadalis Companion copy. Use a new evidence directory for each invocation; the command never overwrites existing captures.
