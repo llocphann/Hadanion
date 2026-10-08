@@ -207,9 +207,10 @@ def compare_pngs(output, samples):
     results = []
     for index, sample in enumerate(samples):
         images = {}
-        for label in ('baseline', 'baseline-repeat', 'candidate', 'candidate-repeat'):
-            with Image.open(output / ('%s-%d.png' % (label, index))) as file:
-                images[label] = file.convert('RGBA')
+        for label, suffix in (('baseline', ''), ('baseline', '-repeat'),
+                              ('candidate', ''), ('candidate', '-repeat')):
+            with Image.open(output / ('%s-%d%s.png' % (label, index, suffix))) as file:
+                images[label + suffix] = file.convert('RGBA')
         before, after = images['baseline'], images['candidate']
         if before.getchannel('A').getextrema()[1] == 0:
             raise RuntimeError('empty_alpha_baseline_capture:' + sample['name'])

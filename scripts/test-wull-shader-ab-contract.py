@@ -93,6 +93,37 @@ assert diag["max_channel_delta"] == 9
 assert diag["difference_bbox"] == [0, 0, 2, 1]
 assert module.rgba_difference(RawImage(bytes(a)), RawImage(bytes(a)))["changed_pixels"] == 0
 
+# Read the filenames actually emitted by QML: label-index-repeat.png.
+# Keep the fixture independent of the consumer so a spelling drift fails.
+from PIL import Image
+with tempfile.TemporaryDirectory() as temporary:
+    output = Path(temporary)
+    for index, sample in enumerate(module.cases()):
+        image = Image.new("RGBA", tuple(module.CAPTURE_SIZE), (index + 1, 80, 130, 255))
+        image.putpixel((0, 0), (0, 0, 0, 0))
+        for label in ("baseline", "candidate"):
+            image.save(output / f"{label}-{index}.png")
+            image.save(output / f"{label}-{index}-repeat.png")
+    comparisons = module.compare_pngs(output, module.cases())
+    assert len(comparisons) == len(module.cases())
+    assert module.classify("self", comparisons) == ("PASS_SAME_SOURCE", 0)
+    with Image.open(output / "baseline-0-repeat.png") as image:
+        changed = image.convert("RGBA")
+    changed.putpixel((0, 0), (9, 0, 0, 0))
+    changed.save(output / "baseline-0-repeat.png")
+    comparisons = module.compare_pngs(output, module.cases())
+    assert comparisons[0]["baseline_repeat_changed_pixels"] == 1
+    assert comparisons[0]["baseline_repeat_max_channel_delta"] == 9
+    assert comparisons[0]["baseline_repeat_bbox"] == [0, 0, 1, 1]
+    assert module.classify("self", comparisons) == ("INCONCLUSIVE_CAPTURE_VARIANCE", 2)
+    (output / "candidate-0-repeat.png").unlink()
+    try:
+        module.compare_pngs(output, module.cases())
+    except FileNotFoundError:
+        pass
+    else:
+        raise AssertionError("missing repeated capture must never qualify")
+
 control = dict(status="PASS_SAME_SOURCE", mode="self", schema=3,
                contract_sha256=module.capture_contract_sha(),
                baseline_source_sha256="baseline-source",
