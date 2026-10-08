@@ -241,9 +241,12 @@ def main():
         from PIL import Image  # noqa: F401 - fail before allocating the evidence directory
     except ImportError:
         parser.error('Python Pillow is required for RGBA validation')
-    for executable in ('qs', 'qsb', 'dbus-run-session'):
-        if not shutil.which(executable):
-            parser.error(executable + ' is required')
+    quickshell = shutil.which('qs') or shutil.which('quickshell')
+    qsb = shutil.which('qsb')
+    if not qsb and Path('/usr/lib/qt6/bin/qsb').is_file():
+        qsb = '/usr/lib/qt6/bin/qsb'
+    if not quickshell or not qsb or not shutil.which('dbus-run-session'):
+        parser.error('Quickshell, Qt qsb and dbus-run-session are required')
     baseline_source = args.baseline_source.resolve()
     bsrc = baseline_source.read_bytes()
     csrc = (args.candidate_source.resolve().read_bytes() if args.mode == 'compare'
@@ -254,14 +257,14 @@ def main():
     output = args.output.resolve()
     if output.exists():
         parser.error('--output must not exist; refusing to overwrite evidence')
-    qsb_version = run_checked(['qsb', '--version'])
+    qsb_version = run_checked([qsb, '--version'])
     graphics = dict(backend=args.graphics, wayland_display=os.environ['WAYLAND_DISPLAY'],
                     qt_qpa_platform='wayland', qsb_flags=['--qt6'])
     started = time.monotonic()
     output.mkdir(mode=0o700, parents=True)
     report = dict(mode=args.mode, schema=2, status='INCONCLUSIVE', contract_sha256=capture_contract_sha(),
                   baseline_source_sha256=digest(bsrc), candidate_source_sha256=digest(csrc),
-                  qsb_version=qsb_version, graphics=graphics, cases=len(cases()),
+                  qsb_version=qsb_version, qsb_binary=qsb, graphics=graphics, cases=len(cases()),
                   result_scope='ShaderEffect pixel captures only; no whole-shell GPU time or FPS',
                   diagnostics_enabled=args.diagnostics)
     try:
@@ -273,9 +276,9 @@ def main():
                 src = folder / 'WaterDropletMaterial.frag'
                 src.write_bytes(source)
                 target = folder / 'WaterDropletMaterial.frag.qsb'
-                run_checked(['qsb', '--qt6', '-o', str(target), str(src)])
+                run_checked([qsb, '--qt6', '-o', str(target), str(src)])
                 report[label + '_qsb_sha256'] = digest(target.read_bytes())
-                dump = run_checked(['qsb', '-d', str(target)])
+                dump = run_checked([qsb, '-d', str(target)])
                 if not dump.strip() or 'fragment' not in dump.lower():
                     raise RuntimeError('qsb_dump_missing_fragment_stage:' + label)
                 report[label + '_qsb_inspection_sha256'] = digest(dump.encode('utf-8'))
@@ -316,7 +319,7 @@ def main():
             if args.diagnostics:
                 env.update(QSG_RENDER_TIMING='1', QSG_RHI_PROFILE='1', QSG_RENDERER_DEBUG='render', QSG_INFO='1')
             with (output / 'capture.log').open('x', encoding='utf-8') as log:
-                process = subprocess.Popen(['dbus-run-session', '--', 'qs', '--path', str(stage / 'shell.qml')],
+                process = subprocess.Popen(['dbus-run-session', '--', quickshell, '--path', str(stage / 'shell.qml')],
                                            cwd=stage, env=env, stdin=subprocess.DEVNULL,
                                            stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
                 try:
