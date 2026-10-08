@@ -2,43 +2,104 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Shapes
 
-// Faceted crystal drawn with the same live theme ink as the AI action.
+// Curved crystal silhouette and facets from the user-supplied Obsidian vector.
+// Transparent canvas; one live theme ink shared with the AI cloud action.
 Item {
     id: root
     required property color color
-    implicitWidth: 24
-    implicitHeight: 28
-    Shape {
+    implicitWidth: 24; implicitHeight: 30
+    Item {
         anchors.centerIn: parent
-        width: 24; height: 28
-        scale: Math.min(root.width/24,root.height/28)
-        ShapePath {
-            strokeWidth: -1; fillColor: Qt.darker(root.color,1.35)
-            startX: 2; startY: 5
-            PathLine {x:14;y:1} PathLine {x:23;y:10} PathLine {x:17;y:25}
-            PathLine {x:11;y:27} PathLine {x:2;y:19} PathLine {x:5;y:11} PathLine {x:2;y:5}
-        }
-        ShapePath {
-            strokeWidth: -1; fillColor: Qt.lighter(root.color,1.2)
-            startX: 2; startY: 5
-            PathLine {x:14;y:1} PathLine {x:10;y:11} PathLine {x:2;y:19}
-            PathLine {x:5;y:11} PathLine {x:2;y:5}
-        }
-        ShapePath {
-            strokeWidth: -1; fillColor: root.color
-            startX: 14; startY: 1
-            PathLine {x:23;y:10} PathLine {x:13;y:14} PathLine {x:10;y:11} PathLine {x:14;y:1}
-        }
-        ShapePath {
-            strokeWidth: -1; fillColor: Qt.darker(root.color,1.12)
-            startX: 23; startY: 10
-            PathLine {x:17;y:25} PathLine {x:13;y:14} PathLine {x:23;y:10}
-        }
-        ShapePath {
-            strokeWidth: -1; fillColor: Qt.darker(root.color,1.6)
-            startX: 10; startY: 11
-            PathLine {x:13;y:14} PathLine {x:17;y:25} PathLine {x:11;y:27}
-            PathLine {x:2;y:19} PathLine {x:10;y:11}
+        width: 327; height: 414
+        scale: Math.min(root.width/width,root.height/height)
+        Shape {
+            x: -93; y: -50; width: 512; height: 512
+            ShapePath {
+                strokeWidth: -1
+                fillColor: root.color
+                PathSvg { path: "M359.9 434.3c-2.6 19.1-21.3 34-40 28.9-26.4-7.3-57-18.7-84.7-20.8l-42.3-3.2a27.9 27.9 0 0 1-18-8.4l-73-75a27.9 27.9 0 0 1-5.4-31s45.1-99 46.8-104.2c1.7-5.1 7.8-50 11.4-74.2a28 28 0 0 1 9-16.6l86.2-77.5a28 28 0 0 1 40.6 3.5l72.5 92a29.7 29.7 0 0 1 6.2 18.3c0 17.4 1.5 53.2 11.1 76.3a303 303 0 0 0 35.6 58.5 14 14 0 0 1 1.1 15.7c-6.4 10.8-18.9 31.4-36.7 57.9a143.3 143.3 0 0 0-20.4 59.8Z" }
+            }
+            ShapePath {
+                strokeWidth: -1
+                fillGradient: RadialGradient {
+                    centerX: 179; centerY: 429.7; centerRadius: 191.126
+                    focalX: 179; focalY: 429.7
+                    GradientStop { position: 0; color: Qt.alpha("#fff",.4) }
+                    GradientStop { position: 1; color: Qt.alpha("#000",.1) }
+                }
+                PathSvg { path: "M182.7 436.4c33.9-68.7 33-118 18.5-153-13.2-32.4-37.9-52.8-57.3-65.5-.4 1.9-1 3.7-1.8 5.4L96.5 324.8a27.9 27.9 0 0 0 5.5 31l72.9 75c2.3 2.3 5 4.2 7.8 5.6Z" }
+            }
+            ShapePath {
+                strokeWidth: -1
+                fillGradient: RadialGradient {
+                    centerX: 341.6; centerY: 351.3; centerRadius: 312.700
+                    focalX: 341.6; focalY: 351.3
+                    GradientStop { position: 0; color: Qt.alpha("#fff",.6) }
+                    GradientStop { position: 1; color: Qt.alpha("#fff",.1) }
+                }
+                PathSvg { path: "M274.9 297c9.1.9 18 2.9 26.8 6.1 27.8 10.4 53.1 33.8 74 78.9 1.5-2.6 3-5.1 4.6-7.5a1222 1222 0 0 0 36.7-57.9 14 14 0 0 0-1-15.7 303 303 0 0 1-35.7-58.5c-9.6-23-11-58.9-11.1-76.3 0-6.6-2.1-13.1-6.2-18.3l-72.5-92-1.2-1.5c5.3 17.5 5 31.5 1.7 44.2-3 11.8-8.6 22.5-14.5 33.8-2 3.8-4 7.7-5.9 11.7a140 140 0 0 0-15.8 58c-1 24.2 3.9 54.5 20 95Z" }
+            }
+            ShapePath {
+                strokeWidth: -1
+                fillGradient: RadialGradient {
+                    centerX: 190.5; centerY: 296.3; centerRadius: 267.152
+                    focalX: 190.5; focalY: 296.3
+                    GradientStop { position: 0; color: Qt.alpha("#fff",.8) }
+                    GradientStop { position: 1; color: Qt.alpha("#fff",.4) }
+                }
+                PathSvg { path: "M274.8 297c-16.1-40.5-21-70.8-20-95 1-24 8-42 15.8-58l6-11.7c5.8-11.3 11.3-22 14.4-33.8a78.5 78.5 0 0 0-1.7-44.2 28 28 0 0 0-39.4-2l-86.2 77.5a28 28 0 0 0-9 16.6L144.2 216c0 .7-.2 1.3-.3 2 19.4 12.6 44 33 57.3 65.3 2.6 6.4 4.8 13.1 6.4 20.4a200 200 0 0 1 67.2-6.8Z" }
+            }
+            ShapePath {
+                strokeWidth: -1
+                fillGradient: RadialGradient {
+                    centerX: 321.4; centerY: 464.2; centerRadius: 154.693
+                    focalX: 321.4; focalY: 464.2
+                    GradientStop { position: 0; color: Qt.alpha("#fff",.3) }
+                    GradientStop { position: 1; color: Qt.alpha("#000",.3) }
+                }
+                PathSvg { path: "M320 463.2c18.6 5.1 37.3-9.8 39.9-29a153 153 0 0 1 15.9-52.2c-21-45.1-46.3-68.5-74-78.9-29.5-11-61.6-7.3-94.2.6 7.3 33.1 3 76.4-24.8 132.7 3.1 1.6 6.6 2.5 10.1 2.8l43.9 3.3c23.8 1.7 59.3 14 83.2 20.7Z" }
+            }
+            ShapePath {
+                strokeWidth: -1
+                fillGradient: RadialGradient {
+                    centerX: 300.7; centerY: 149.9; centerRadius: 139.058
+                    focalX: 300.7; focalY: 149.9
+                    GradientStop { position: 0; color: Qt.alpha("#fff",0) }
+                    GradientStop { position: 1; color: Qt.alpha("#fff",.2) }
+                }
+                PathSvg { path: "M255 200.5c-1.1 24 1.9 51.4 18 91.8l-5-.5c-14.5-42.1-17.7-63.7-16.6-88 1-24.3 8.9-43 16.7-59 2-4 6.6-11.5 8.6-15.3 5.8-11.3 9.7-17.2 13-27.5 4.8-14.4 3.8-21.2 3.2-28 3.7 24.5-10.4 45.8-21 67.5a145 145 0 0 0-17 59Z" }
+            }
+            ShapePath {
+                strokeWidth: -1
+                fillGradient: RadialGradient {
+                    centerX: 137.8; centerY: 225.2; centerRadius: 102.533
+                    focalX: 137.8; focalY: 225.2
+                    GradientStop { position: 0; color: Qt.alpha("#fff",.2) }
+                    GradientStop { position: 1; color: Qt.alpha("#fff",.4) }
+                }
+                PathSvg { path: "M206 285.1c2 4.4 3.7 8 4.9 13.5l-4.3 1c-1.7-6.4-3-11-5.5-16.5-14.6-34.3-38-52-57-65 23 12.4 46.7 31.9 61.9 67Z" }
+            }
+            ShapePath {
+                strokeWidth: -1
+                fillGradient: RadialGradient {
+                    centerX: 215.1; centerY: 273.7; centerRadius: 119.683
+                    focalX: 215.1; focalY: 273.7
+                    GradientStop { position: 0; color: Qt.alpha("#fff",.1) }
+                    GradientStop { position: 1; color: Qt.alpha("#fff",.3) }
+                }
+                PathSvg { path: "M211.1 303c8 37.5-1 85.2-27.5 131.6 22.2-46 33-90.1 24-131l3.5-.7Z" }
+            }
+            ShapePath {
+                strokeWidth: -1
+                fillGradient: RadialGradient {
+                    centerX: 374.4; centerY: 371.7; centerRadius: 182.945
+                    focalX: 374.4; focalY: 371.7
+                    GradientStop { position: 0; color: Qt.alpha("#fff",.2) }
+                    GradientStop { position: .5; color: Qt.alpha("#fff",.2) }
+                    GradientStop { position: 1; color: Qt.alpha("#fff",.3) }
+                }
+                PathSvg { path: "M302.7 299.5c43.5 16.3 60.3 52 72.8 81.9-15.5-31.2-37-65.7-74.4-78.5-28.4-9.8-52.4-8.6-93.5.7l-.9-4c43.6-10 66.4-11.2 96 0Z" }
+            }
         }
     }
 }
