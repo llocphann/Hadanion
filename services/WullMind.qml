@@ -8,17 +8,25 @@ import qs.services
 import qs.modules.common
 import "WullReplyGuard.js" as WullReplyGuard
 import "WullPersona.js" as WullPersona
+import "WullModelPolicy.js" as ModelPolicy
 
 // On-demand model I/O is isolated from the renderer/native companion clock.
 Singleton {
     id: root
     property string character: "aqua"
     readonly property var options: Config.options?.abyss?.companionMind ?? ({})
-    readonly property bool aiEnabled: Ai.modelCanRun(Ai.models[model])
+    readonly property bool localOnly: options.localOnly !== false
+    readonly property bool aiEnabled: ModelPolicy.allowed(Ai.models[model],localOnly) && Ai.modelCanRun(Ai.models[model])
     readonly property bool talkEnabled: options.talkEnabled ?? true
     readonly property bool obsidianEnabled: options.obsidianEnabled === true
-    readonly property string model: Ai.models[String(options.model ?? "")]
-        ? String(options.model) : String(Ai.currentModelId ?? "")
+    readonly property string model: {
+        const selected=String(options.model ?? "")
+        if (Ai.models[selected]) return selected
+        const current=String(Ai.currentModelId ?? "")
+        if (ModelPolicy.allowed(Ai.models[current],localOnly)) return current
+        return Ai.runnableModelList.find(id=>ModelPolicy.allowed(Ai.models[id],localOnly)) ?? ""
+    }
+    onLocalOnlyChanged: if(localOnly && pending?.action==="ai_chat" && pending.request.local!==true)cancel()
     readonly property string thinkingEffort: ["off","low","medium","high"].includes(String(options.thinkingEffort ?? "off"))
         ? String(options.thinkingEffort ?? "off") : "off"
     readonly property string referenceVault: String(options.referenceVault ?? "")
@@ -60,8 +68,8 @@ Singleton {
     property string connectionStatus: "disconnected"
     property string errorMessage: ""
     property var aiSession: null
-    readonly property var selectableModels: [{name:"",label:"Use the AI tab model",thinking:false}]
-        .concat(Ai.runnableModelList.map(id=>({name:id,label:Ai.models[id].name,
+    readonly property var selectableModels: [{name:"",label:localOnly ? "Automatic local model" : "Use the AI tab model",thinking:false}]
+        .concat(Ai.runnableModelList.filter(id=>ModelPolicy.allowed(Ai.models[id],localOnly)).map(id=>({name:id,label:Ai.models[id].name,
             thinking:Ai.supportsThinking(Ai.models[id])})))
     readonly property var thinkingLevels: [
         {value:"off",label:Ai.models[model]?.api_format==="gguf" ? "Instant" : "Provider default"},
@@ -147,7 +155,7 @@ Singleton {
     }
     function selectModel(entry): void {
         if(!entry || typeof entry.name!=="string")return
-        if(entry.name && !Ai.models[entry.name])return
+        if(entry.name && !ModelPolicy.allowed(Ai.models[entry.name],localOnly))return
         Config.setNestedValue("abyss.companionMind.model",entry.name)
     }
     function setThinkingEffort(value): void {
@@ -220,7 +228,7 @@ Singleton {
         if (!prompt || busy || draining || historyClearPending) return false
         ensureAi()
         if (!available) {
-            errorMessage="Choose an available model or provider in AI settings."
+            errorMessage=localOnly ? "Choose an available local model in AI settings." : "Choose an available model or provider in AI settings."
             return false
         }
         const serial=++epoch
@@ -234,7 +242,7 @@ Singleton {
             errorMessage=aiSession.error || "Wait for the previous reply to finish."
             return false
         }
-        pending={serial:serial,action:"ai_chat",request:{prompt:prompt,model:model}}
+        pending={serial:serial,action:"ai_chat",request:{prompt:prompt,model:model,local:ModelPolicy.isLocal(Ai.models[model])}}
         busy=true;errorMessage="";connectionStatus="generating"
         history=history.concat([{id:0,clientId:String(serial)+":user",role:"user",content:prompt,pending:true}]).slice(-2000)
         historyLoaded=true;touchConversation()

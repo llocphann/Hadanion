@@ -389,6 +389,17 @@ ContentPage {
                 autoToggle:false;checked:WullMind.talkEnabled
                 onToggledByUser:checked=>Config.setNestedValue("abyss.companionMind.talkEnabled",checked)
             }
+            SettingsSwitch {
+                objectName:"wullAllowCloudModels"
+                text:Translation.tr("Allow cloud models")
+                autoToggle:false;checked:!WullMind.localOnly
+                onToggledByUser:checked=>Config.setNestedValue("abyss.companionMind.localOnly",!checked)
+            }
+            StyledText {
+                Layout.fillWidth:true
+                text:WullMind.localOnly ? "Local only" : "Cloud models allowed"
+                color:Appearance.colors.colSubtext
+            }
             ChoiceRow {
                 objectName:"wullProactiveFrequency"
                 label:Translation.tr("Check-ins and reminders")

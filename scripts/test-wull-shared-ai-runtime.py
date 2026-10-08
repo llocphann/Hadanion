@@ -85,11 +85,22 @@ ShellRoot {
     root.add("fixture-main","/ok");root.add("fixture-wull","/ok")
     root.add("fixture-failure","/failure");root.add("fixture-slow","/slow")
     root.add("fixture-extra","/extra");root.add("fixture-tokens","/tokens");root.add("fixture-malformed","/malformed")
+    root.add("fixture-cloud","/cloud");Ai.models["fixture-cloud"].local=false
+    root.add("fixture-spoof","/spoof");Ai.models["fixture-spoof"].endpoint="http://localhost@cloud.invalid/v1"
     Ai.modelList=Object.keys(Ai.models)
     Ai.models["fixture-wull"].requires_key=true
     Ai.models["fixture-wull"].key_id="fixture";Ai.models["fixture-wull"].auth_scheme="bearer"
     Ai.currentModelId="fixture-main";Ai.addMessage("Ordinary AI history","user")
     root.mainIDs=Ai.messageIDs.slice()
+    if(!root.check(WullMind.localOnly && !WullMind.selectableModels.some(entry=>["fixture-cloud","fixture-spoof"].includes(entry.name)),"local default lists a remote/spoofed model"))return
+    for(const id of ["fixture-cloud","fixture-spoof"]){
+     Config.setNestedValue("abyss.companionMind.model",id)
+     if(!root.check(!WullMind.available && !WullMind.sendMessage("Never send this fixture"),"local-only request accepted a cloud or spoofed model"))return
+    }
+    Config.setNestedValue("abyss.companionMind.model","")
+    Ai.currentModelId="fixture-cloud"
+    if(!root.check(WullMind.model!=="fixture-cloud" && WullMind.available && Ai.currentModelId==="fixture-cloud","automatic local selection modified the main AI model or fell back to cloud"))return
+    Ai.currentModelId="fixture-main"
     Config.setNestedValues({"abyss.companionMind.model":"fixture-wull",
      "abyss.companionMind.endpoint":"http://127.0.0.1:1",
      "abyss.companionMind.thinkingEffort":"high"})
@@ -140,7 +151,13 @@ ShellRoot {
     if(!root.check(WullMind.history[WullMind.history.length-1]?.content==="Fixture hello"
         && WullMind.history[WullMind.history.length-1]?.persisted
         && Ai.messageIDs.length===root.mainIDs.length,"rejected outputs prevented valid recovery"))return
-    console.info("WULL_SHARED_AI_PASS catalog request history-isolation persistence HTTP-error cancel retry model-follow output-rejection recovery");Qt.quit()
+    Config.setNestedValue("abyss.companionMind.localOnly",false)
+    Config.setNestedValue("abyss.companionMind.model","fixture-cloud")
+    if(!root.check(WullMind.selectableModels.some(entry=>entry.name==="fixture-cloud") && WullMind.sendMessage("Queued cloud fixture"),"explicit cloud opt-in is unavailable"))return
+    Config.setNestedValue("abyss.companionMind.localOnly",true)
+    if(!root.check(!WullMind.busy && !WullMind.aiSession.busy && !WullMind.history.some(entry=>entry.content==="Queued cloud fixture"),"revoking cloud opt-in did not cancel the queued request"))return
+    Config.setNestedValue("abyss.companionMind.model","")
+    console.info("WULL_SHARED_AI_PASS catalog request history-isolation persistence HTTP-error cancel retry model-follow output-rejection recovery localDefault cloudBlock spoofBlock localAutoFallback consentRevoke");Qt.quit()
    }
   }
  }
@@ -151,6 +168,8 @@ ShellRoot {
             print("SKIP: Wull shared AI runtime requires a private Niri session")
             raise SystemExit(0)
         env["AI_FIXTURE_URL"]=f"http://127.0.0.1:{server.server_port}"
+        env.update(http_proxy="http://127.0.0.1:1",HTTP_PROXY="http://127.0.0.1:1",
+                   ALL_PROXY="http://127.0.0.1:1",all_proxy="http://127.0.0.1:1",NO_PROXY="",no_proxy="")
         result=run_qs(folder,env)
     output=result.stdout+result.stderr
     errors=["WULL_SHARED_AI_FAIL","ReferenceError:","TypeError:","Binding loop","Unable to assign","is not a type"]
@@ -165,6 +184,7 @@ ShellRoot {
     assert headers[0].get("Authorization")=="Bearer fixture-credential"
     assert "Authorization" not in headers[1], "previous provider credential survived a keyless switch"
     assert len([row for path,row,headers in requests if path in ('/extra','/tokens','/malformed')])==3
+    assert not any(path in ('/cloud','/spoof') for path,row,headers in requests), 'blocked or revoked request reached transport'
     with sqlite3.connect(Path(env['XDG_STATE_HOME'])/'inir/wull/chat.sqlite3') as db:
         rows=db.execute('SELECT role,content FROM messages ORDER BY id').fetchall()
     assert rows==[('user','Hello fixture'),('assistant','Fixture hello'),
