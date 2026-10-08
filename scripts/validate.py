@@ -83,7 +83,8 @@ def main():
             "test-wull-gguf-ui.py", "test-wull-shared-ai-runtime.py", "test-wull-abyss-water.py",
             "test-wull-portal-runtime.py", "test-wull-presence-interaction.py", "test-wull-alive-reactions.py",
             "test-wull-mature-popup.py", "test-companion-airborne-orientation.py",
-            "test-companion-volume.py", "test-wull-shader-ab-contract.py", "test-wull-companion-settings.py", "test-wull-mind-ui.py",
+            "test-companion-volume.py", "test-wull-shader-ab-contract.py",
+            "test-wull-shader-sequence-contract.py", "test-wull-companion-settings.py", "test-wull-mind-ui.py",
             "test-wull-immersion-runtime.py", "test-wull-cloud-orbit.py")]
         qml_parser = "/usr/lib/qt6/bin/qmlformat" if Path("/usr/lib/qt6/bin/qmlformat").is_file() else shutil.which("qmlformat")
         if not qml_parser:
