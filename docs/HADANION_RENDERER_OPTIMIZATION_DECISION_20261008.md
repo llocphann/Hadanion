@@ -87,6 +87,39 @@ Do not implement candidates in parallel. Each is separately source-pinned, measu
 
 **G5 / decision:** Publish exact baseline and candidate SHA + metrics + raw artifact provenance + acceptance status + gains **for Companion and whole desktop separately**. Promote only if improvement exceeds noise and useful target without regressing more important metrics; otherwise **stop, retain single 3D renderer, and consider Hadalis's independently owned full-screen/Abyss optimizations**. Maintain a clean rollback to the last known-good Hadanion release through the existing immutable release/current-link design; no mandatory install/restart during tests.
 
+## G0 implementation checkpoint and manual GPU qualification — 2026-10-08
+
+**Current implementation:** `scripts/wull-shader-ab.py` is committed as an **isolated, independently compiled** two-`.qsb` ShaderEffect pixel comparison harness, with `scripts/test-wull-shader-ab-contract.py` integrated into `scripts/validate.py`. It does **not** touch the product `.frag`, shipped `.qsb`, Blender animation, loader, installed release, or Hadalis host. Unit/offline classification and fail-closed checks are possible without a GPU. **G0 is NOT YET QUALIFIED** until actual A/A and deliberately altered A/B captures succeed on the maintainer's real Wayland + Qt/Quickshell + `qsb` session.
+
+The harness stages two different QSB locations in one temporary, private Quickshell window; each is produced with `qsb --qt6` from an explicitly hashed shader source. It samples 12 material/pose/theme combinations, compares unmodified RGBA pixels, checks for non-empty baseline captures and records QSB hashes, qsb version, backend/Wayland handle, Qt logs and failure categories. It requires a prior **qualifying A/A** result before negative testing, and requires **both** qualifying A/A and deliberately different-shader control results before real candidate comparisons. Comparison is **shader-only** (not full WaterDropletBody composition, no 60-clip claim, no live compositor input proof). A successful single QML capture is not a frame-time benchmark.
+
+### Exact interactive GPU qualification commands
+
+Run from a current clean Hadanion checkout with `WAYLAND_DISPLAY`, `XDG_RUNTIME_DIR`, `qs`, `qsb`, `dbus-run-session` and Python Pillow available. Prefer Hadanion's ordinary source checkout, *not* an installed runtime or the historical Hadalis Companion copy. Use a new evidence directory for each invocation; the command never overwrites existing captures.
+
+```bash
+set -euo pipefail
+run="$HOME/.local/state/hadanion/shader-ab/$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$run"
+python3 scripts/test-wull-shader-ab-contract.py
+python3 scripts/wull-shader-ab.py --mode self --output "$run/aa" --diagnostics
+python3 scripts/wull-shader-ab.py --mode negative \
+    --control-report "$run/aa/result.json" --output "$run/negative"
+python3 scripts/build-wull-material-candidate.py "$run/bubble-candidate.frag"
+python3 scripts/wull-shader-ab.py --mode compare \
+    --candidate-source "$run/bubble-candidate.frag" \
+    --control-report "$run/aa/result.json" \
+    --negative-report "$run/negative/result.json" \
+    --output "$run/ab"
+printf 'Shader A/B reports: %s\\n' "$run"
+```
+
+**Interpret reports literally.** `PASS_SAME_SOURCE` is required for A/A; `PASS_DIFFERENCE_DETECTED` is required for the deliberately perturbed shader. `PASS_PIXEL_EQUAL` on a candidate applies **only** to the tested 12 shader samples, on that backend/compiler build. `FAIL_PIXEL_DIFFERENCE` means a deviation was detected; it is *not* a runtime crash. Any `INCONCLUSIVE` (missing QSB variants, differing compiler outputs on A/A, capture timeout, missing Wayland, empty image, dependency error, source drift or invalid control report) blocks promotion. `capture.log` and `result.json` are private/local diagnostic data and should not be published unreviewed.
+
+The built-in negative mutation changes the final body-fragment output only to demonstrate visible pixel detection. `--diagnostics` records `QSG_RENDER_TIMING`, `QSG_RHI_PROFILE`, `QSG_RENDERER_DEBUG=render` and `QSG_INFO` diagnostics separately from later repeatable timing experiments. GPU timestamps may be unsupported; Qt timings are not isolated per-material shader time. The `elapsed_capture_wall_seconds_not_gpu_time` report field **must never** be interpreted as a GPU speedup.
+
+**Next after G0 is proven:** obtain a pinned, repeatable G1 baseline in the real Hadanion-enabled Hadalis host (OFF / hidden / idle / moving / pitched / Octo grip, p50/p95/p99 GPU frame, CPU, PSS/VRAM when observable). Only then investigate E1 bubble-ray's candidate as a performance optimization. A doc-only write, contract test pass or synthetic pixel capture does not itself satisfy G1 or real Niri acceptance.
+
 ## Tooling and references
 
 - Hadanion build and isolated tests: [Makefile](../Makefile), [scripts/validate.py](../scripts/validate.py), [scripts/wull-verify-lossless-render.py](../scripts/wull-verify-lossless-render.py), [scripts/build-wull-material-candidate.py](../scripts/build-wull-material-candidate.py), [scripts/test-companion-volume.py](../scripts/test-companion-volume.py), [scripts/test-companion-cast.py](../scripts/test-companion-cast.py), [scripts/test-wull-spatial-volume.py](../scripts/test-wull-spatial-volume.py), [scripts/test-wull-render-cost-contract.py](../scripts/test-wull-render-cost-contract.py).
