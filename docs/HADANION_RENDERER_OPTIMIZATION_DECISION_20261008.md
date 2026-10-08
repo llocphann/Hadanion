@@ -44,6 +44,40 @@ Minimum paired scenarios: Companion OFF, configured but invisible, Aqua idle, wa
 
 Use deterministic finite motion phases and explicitly qualified clips. For image A/B, capture before/after from independently staged baseline/candidate shader source **and distinct QSB** under identical uniforms/theme, background, resolution, alpha state, orientation and present-frame readiness. Include shader-only captures and a final host composite; preserve transparent pixels and premultiplication. An unchanged PNG does not prove an unchanged algorithm for all phases.
 
+### G1 tooling preflight — read-only resource sampler (2026-10-09)
+
+The repository now owns [`scripts/wull-g1-resource-sample.py`](../scripts/wull-g1-resource-sample.py), its [offline parser/identity tests](../scripts/test-wull-g1-resource-contract.py), [`scripts/wull-g1-compare.py`](../scripts/wull-g1-compare.py) and [multi-run comparison tests](../scripts/test-wull-g1-compare-contract.py). **These scripts do not start, stop, move, show or hide the actor, compositor or any user process.** A future local chatbot must first identify the correct Quickshell PID and manually establish each target state in a compatible Hadalis host, without changing presentation policy for the sake of tests.
+
+The sampler pins the **current clean Hadanion and Hadalis source revisions**, reads only `/proc/<explicit_pid>/stat`, `status` and (when readable) `smaps_rollup`, requires a process belonging to the user's UID, and rejects PID recycling/mid-sample changes. Sampled values: process CPU ticks converted using OS clock tick rate, CPU usage normalized to one logical core, observed thread count, process RSS and PSS (when supported). Every receipt labels **GPU frame time, scene/compositor GPU time, VRAM, frame p50/p95/p99 and power `NOT_MEASURED`**. The tool is not a driver profiler, GPU benchmark or measurement of total Hadalis resource consumption. Never attribute all of Quickshell CPU to Companion without paired OFF/hidden/visible evidence.
+
+The comparison tool requires at least **three independent captures per actor state** with the same commit SHAs, role, backend, nominal duration, sampling interval and warmup. It publishes descriptive medians/ranges for CPU and RSS/PSS only. It does *not* pair separate machines, infer statistical significance, provide GPU percentages, assert CPU savings, or validate state truth automatically.
+
+**Example local-chatbot commands after G0 has qualified and the correct PID/state have been confirmed manually:**
+
+```bash
+cd /path/to/Hadanion
+# Select the *actual* stable Quickshell PID; never guess, kill, or restart it.
+# Set QS_PID using the local host's explicit process inspection.
+# Take at least 3 separate captures with the host holding the stated state.
+root="$HOME/.local/state/hadanion/g1-$(date +%Y%m%d-%H%M%S)"
+for i in 1 2 3; do
+  # Confirm Aqua is disabled/OFF before each recording.
+  python3 scripts/wull-g1-resource-sample.py --pid "$QS_PID" --role shell \
+    --state off --backend opengl --hadalis-root /path/to/Hadalis \
+    --duration 30 --interval 1 --warmup 5 --output "$root/off-$i"
+  # The local chatbot must explicitly enable Aqua and observe idle before recording;
+  # NEVER use script timing as a proxy for the confirmed visible state.
+  python3 scripts/wull-g1-resource-sample.py --pid "$QS_PID" --role shell \
+    --state aqua_idle --backend opengl --hadalis-root /path/to/Hadalis \
+    --duration 30 --interval 1 --warmup 5 --output "$root/aqua-idle-$i"
+done
+python3 scripts/wull-g1-compare.py --reference-state off --observed-state aqua_idle \
+  --receipts "$root"/off-*/result.json "$root"/aqua-idle-*/result.json \
+  --output "$root/off-vs-aqua-idle.json"
+```
+
+This example is **not** a turnkey state controller: the required OFF→Aqua change is deliberately left to a local, observed UI/IPC sequence and must happen before each corresponding sample. If the state cannot be confirmed or a PID changes, label that pass `INCONCLUSIVE` and do not include it in comparisons. To assess Octo or airborne modes, record separate labeled samples; comparisons on unchanged source establish *workload overhead*, not *optimized candidate performance*. For production claims, G1 additionally requires independently sourced GPU frame-time instrumentation, calibrated A/A drift, whole-shell scene comparison and p95/p99 frame pacing with an actual Wayland/Niri integration check.
+
 ### B2 — paired repeatability, reporting and attribution
 
 Warm both variants equivalently; run at least 5 A/B paired repetitions per key motion state (randomized AB/BA order), with enough frames for stable p50/p95/p99 and confidence intervals. Record per-state sample count, median/p95/p99 frame interval and GPU-time signal (with API/scope named), CPU time/wakeups, PSS/RSS, GPU allocation/residency when observable, draw submissions/scenegraph batches, startup-to-first-presented-frame and idle power if measurable. Separate idle/off and visible averages by observed duty cycle, not guesses.
