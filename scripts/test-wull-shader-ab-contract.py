@@ -16,6 +16,9 @@ assert len(module.cases()) >= 10
 assert {"aqua_faceplant", "octo_head", "cornea", "foot", "aqua_theme_shift"} <= {
     state["name"] for state in module.cases()
 }
+assert 'onFrameSwapped:' in module.QML and 'framesSinceSwitch < 1' in module.QML
+assert 'graphics_api_mismatch' in module.QML
+assert module.capture_contract_sha() == module.capture_contract_sha()
 assert module.QML.count('fragmentShader: Qt.resolvedUrl(') == 2
 assert '"baseline/WaterDropletMaterial.frag.qsb"' in module.QML
 assert '"candidate/WaterDropletMaterial.frag.qsb"' in module.QML
@@ -37,14 +40,25 @@ assert module.classify("negative", [{"changed_pixels": 1}]) == ("PASS_DIFFERENCE
 assert module.classify("negative", [{"changed_pixels": 0}]) == ("FAIL_NEGATIVE_UNDETECTED", 3)
 assert module.classify("compare", [{"changed_pixels": 0}]) == ("PASS_PIXEL_EQUAL", 0)
 assert module.classify("compare", [{"changed_pixels": 5}]) == ("FAIL_PIXEL_DIFFERENCE", 1)
-control = dict(status="PASS_SAME_SOURCE", mode="self",
+control = dict(status="PASS_SAME_SOURCE", mode="self", schema=2,
+               contract_sha256=module.capture_contract_sha(),
                baseline_source_sha256="baseline-source",
-               baseline_qsb_sha256="baseline-qsb", qsb_version="qsb version",
-               graphics=dict(backend="opengl"))
+               candidate_source_sha256="baseline-source",
+               baseline_qsb_sha256="baseline-qsb",
+               candidate_qsb_sha256="baseline-qsb",
+               qsb_version="qsb version",
+               graphics=dict(backend="opengl"),
+               comparison=[dict(name=case["name"], changed_pixels=0) for case in module.cases()])
 assert module.qualified_control(control, "baseline-source", "baseline-qsb",
                                 "qsb version", dict(backend="opengl"))
 for changed in (dict(control, status="INCONCLUSIVE_SELF_CONTROL"),
                 dict(control, baseline_qsb_sha256="other"),
+                dict(control, candidate_qsb_sha256="other"),
+                dict(control, candidate_source_sha256="other"),
+                dict(control, contract_sha256="stale-fixture"),
+                dict(control, schema=1),
+                dict(control, comparison=[]),
+                dict(control, comparison=[dict(name="tampered", changed_pixels=1)] * len(module.cases())),
                 dict(control, graphics=dict(backend="vulkan"))):
     assert not module.qualified_control(changed, "baseline-source", "baseline-qsb",
                                         "qsb version", dict(backend="opengl"))
