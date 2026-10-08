@@ -47,3 +47,7 @@ Hadanion's validator runs current product Rust/JavaScript behavior tests, owned 
 Imported historical diagnostic scripts remain available with their original source-pinned guards. They are not automatically dispatched by the current product validator. Do not replay consumed historical capture/benchmark lineages or treat old Hadalis receipts as Hadanion acceptance. Historical receipts stay in Hadalis unchanged.
 
 Canonical Hadalis validation applies only to the exact Hadalis SHA printed by its run. Owned layer-shell/renderer fixtures are bounded integration evidence; physical multi-output/hotplug/suspend/focus/resource behavior and reference-image approval remain separate acceptance.
+
+## Current local-model preference
+
+Companion defaults to `abyss.companionMind.localOnly = true`; the typed preference/default is supplied by Hadalis `114c8d4fdbe054e3e262a939f6ee3a8095d7110b` or later. The optional settings page exposes **Allow cloud models**. Catalog ownership and model supervision remain in Hadalis; Hadanion only filters selection and guards the request boundary. Local HTTP text transport bypasses environment proxies. The existing GGUF path stays on the shared local supervisor.

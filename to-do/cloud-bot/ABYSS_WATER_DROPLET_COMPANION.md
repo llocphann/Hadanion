@@ -36,6 +36,14 @@ Read the [local chatbot execution contract](README.md#local-chatbot-execution-co
 - [ ] **G1 real baseline still OPEN:** no measured GPU frame-time/VRAM/whole-shell p95/p99; no verified performance percent. No production E1 shader is authorized.
 - [ ] **Full integration acceptance still OPEN:** `make test HADALIS_ROOT=/path/to/Hadalis`, relevant Hadalis host validator and real Niri/Quickshell four-edge/drag/overlay/suspend/hotplug tests on exact-source releases.
 
+## Package and cloud-icon milestone — 2026-10-09
+
+**QUALIFIED within focused scope:** optional extraction is published and installed separately. Hadalis's scoped live migration applied 15 host files, removed 204 Companion-owned runtime files and retained existing Companion/AI preferences. Installed-package discovery succeeds; the owner's current disabled preference remains disabled with zero Companion native children. The whole live Hadalis tree is **not** claimed to equal one commit. Rollback and aggregate receipt are retained locally under `${XDG_STATE_HOME}/hadanion-migration-20261008-e55bc474/`.
+
+The user-supplied Obsidian SVG now supplies the curved crystal and nine native vector paths in [`WullObsidianIcon.qml`](../../modules/abyss/companion/WullObsidianIcon.qml), without its background or blur. Ink follows the Abyss/AI cloud theme. Hadanion `41edd962afae29799646f645e4713306a26b2860` / Hadalis `942de6c5bb3b24eb8affdddf5679cab0f12d2fcb`: package lifecycle, external host and icon parser checks exited **0, 3 PASS / 0 FAIL / 0 SKIP** (`/tmp/hadanion-icon-package-focused-20261009.log`). The visible four-edge cloud capture and four-theme preview also passed at `a8fa298a4c52849f91dc511f6dae15b2a08dfc19`; private captures and source receipt are under `${XDG_STATE_HOME}/hadanion/validation/20261009-obsidian-vector-a8fa298a-attempt2/`. An earlier temporary fixture setup failure is preserved separately; it produced no capture.
+
+These checks do not close G0/G1, real-model, full desktop or laptop acceptance. No production liquid shader, Blender clip, cast duration, input owner or rendering tier changed.
+
 ## P0 — Resolve renderer evidence before shader modifications
 
 - [ ] Run [G0 sequence](../../docs/HADANION_RENDERER_OPTIMIZATION_DECISION_20261008.md#one-command-local-chatbot-qualification-preferred) from **clean** Hadanion checkout on actual Wayland GPU. Require **A/A pixel-identical, deliberate negative detectable and independently built candidate A/B**; inspect receipt + images; classify variance, not guess its cause. Never reuse a report from the older schema or turn `INCONCLUSIVE` into `PASS`.
