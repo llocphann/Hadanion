@@ -135,8 +135,8 @@ def evaluate(rows, fixture_hash):
             "largest_identical_three_word_opener_count": highest,
         }
     complete = (all(per_character[p]["responses"] >= 1 for p in ALLOWED_CHARACTERS)
-                and {(r["case_id"] for r in rows if r["character"] == "aqua")} ==
-                    {(r["case_id"] for r in rows if r["character"] == "octo")})
+                and {r["case_id"] for r in rows if r["character"] == "aqua"} ==
+                    {r["case_id"] for r in rows if r["character"] == "octo"})
     return {
         "schema": 1,
         "status": "OFFLINE_FORMAT_METRICS_ONLY" if complete else "INCOMPLETE_CHARACTER_MATRIX",
