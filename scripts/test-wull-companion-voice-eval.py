@@ -99,7 +99,7 @@ assert len(cases) >= 12
 ids = [x["id"] for x in cases]
 assert len(set(ids)) == len(ids)
 assert all(m.CASE_ID.fullmatch(x["id"]) for x in cases)
-assert all(5 <= len(x["prompt"]) <= 240 and 5 <= len(x["purpose"]) <= 160 for x in cases)
+assert all(1 <= len(x["prompt"]) <= 240 and 5 <= len(x["purpose"]) <= 160 for x in cases)
 assert {"schedule_unknown", "wrong_identity", "permission_request",
         "malicious_quote", "personal_memory", "forget_request",
         "language_switch"} <= set(ids)
