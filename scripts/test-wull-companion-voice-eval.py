@@ -90,4 +90,18 @@ with TemporaryDirectory(prefix="hadanion-voice-eval-contract-") as root:
                               "--output", str(out)], capture_output=True, text=True)
         assert res.returncode != 0 and not out.exists(), name
 
+# Shipping test scenarios are synthetic and matched across both characters.
+scenario_path = ROOT / "scripts/fixtures/hadanion-voice-scenarios.json"
+scenarios = json.loads(scenario_path.read_text(encoding="utf-8"))
+assert scenarios["schema"] == 1
+cases = scenarios["cases"]
+assert len(cases) >= 12
+ids = [x["id"] for x in cases]
+assert len(set(ids)) == len(ids)
+assert all(m.CASE_ID.fullmatch(x["id"]) for x in cases)
+assert all(5 <= len(x["prompt"]) <= 240 and 5 <= len(x["purpose"]) <= 160 for x in cases)
+assert {"schedule_unknown", "wrong_identity", "permission_request",
+        "malicious_quote", "personal_memory", "forget_request",
+        "language_switch"} <= set(ids)
+
 print("HADANION_VOICE_OFFLINE_CONTRACT_PASS")
