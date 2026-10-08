@@ -125,6 +125,19 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def qsb_flags(executable):
+    # Qt 6.4 qsb predates --qt6; produce its equivalent shader variants.
+    help_result = subprocess.run([executable, '--help'], capture_output=True, text=True, timeout=10)
+    if help_result.returncode:
+        raise RuntimeError('qsb_help_unavailable')
+    text = help_result.stdout + help_result.stderr
+    if '--qt6' in text:
+        return ['--qt6']
+    if all(option in text for option in ('--glsl', '--hlsl', '--msl')):
+        return ['--glsl', '100 es,120,150', '--hlsl', '50', '--msl', '12']
+    raise RuntimeError('qsb_missing_required_shader_targets')
+
+
 def run_checked(command, timeout=30):
     result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
     if result.returncode:
@@ -258,8 +271,9 @@ def main():
     if output.exists():
         parser.error('--output must not exist; refusing to overwrite evidence')
     qsb_version = run_checked([qsb, '--version'])
+    selected_flags = qsb_flags(qsb)
     graphics = dict(backend=args.graphics, wayland_display=os.environ['WAYLAND_DISPLAY'],
-                    qt_qpa_platform='wayland', qsb_flags=['--qt6'])
+                    qt_qpa_platform='wayland', qsb_flags=selected_flags)
     started = time.monotonic()
     output.mkdir(mode=0o700, parents=True)
     report = dict(mode=args.mode, schema=2, status='INCONCLUSIVE', contract_sha256=capture_contract_sha(),
@@ -276,7 +290,7 @@ def main():
                 src = folder / 'WaterDropletMaterial.frag'
                 src.write_bytes(source)
                 target = folder / 'WaterDropletMaterial.frag.qsb'
-                run_checked([qsb, '--qt6', '-o', str(target), str(src)])
+                run_checked([qsb, *selected_flags, '-o', str(target), str(src)])
                 report[label + '_qsb_sha256'] = digest(target.read_bytes())
                 dump = run_checked([qsb, '-d', str(target)])
                 if not dump.strip() or 'fragment' not in dump.lower():
