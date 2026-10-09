@@ -22,6 +22,19 @@ converter = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(converter)
 
 
+def record_native_process(output, result, cases, deadline, contact):
+    """Retain the actual process outcome before native qualification can fail."""
+    missing=[case['name'] for case in cases
+             if not (output/'frames'/(case['name']+'.png')).is_file()]
+    receipt={'nativeExitCode':result.returncode,'deadlineSeconds':deadline,
+             'scheduledFrames':len(cases),'capturedFrames':len(cases)-len(missing),
+             'missingFrames':missing,'contact':contact,
+             'completionMarker':'COMPANION_NATIVE_CAPTURE_DONE' in result.stdout,
+             'scope':'Process inventory only; not geometry, pixels or resource qualification'}
+    (output/'process.json').write_text(json.dumps(receipt,indent=2)+'\n')
+    return receipt
+
+
 def offline(folder):
     source = folder / "fixture.gltf"
     binary = source.with_suffix(".bin")
@@ -54,7 +67,21 @@ def offline(folder):
         try: converter.number(invalid)
         except ValueError: pass
         else: raise AssertionError("invalid keyframe accepted")
-    print("COMPANION_NATIVE_CONVERTER_PASS boundedBuffers finiteValues")
+    # Synthetic process results exercise failed/partial/successful inventory;
+    # they never launch a compositor or count as a native capture qualification.
+    cases=[{'name':'first'},{'name':'second'}]
+    for index,(code,marker,count) in enumerate([(124,'',1),(0,'',1),
+                                               (0,'COMPANION_NATIVE_CAPTURE_DONE',2)]):
+        output=folder/('process-'+str(index));(output/'frames').mkdir(parents=True)
+        for case in cases[:count]:(output/'frames'/(case['name']+'.png')).touch()
+        result=subprocess.CompletedProcess([],code,marker)
+        receipt=record_native_process(output,result,cases,81,True)
+        assert json.loads((output/'process.json').read_text())==receipt
+        assert receipt['nativeExitCode']==code and receipt['deadlineSeconds']==81
+        assert receipt['scheduledFrames']==2 and receipt['capturedFrames']==count
+        assert receipt['missingFrames']==[case['name'] for case in cases[count:]]
+        assert receipt['completionMarker']==bool(marker) and receipt['contact'] is True
+    print("COMPANION_NATIVE_CONVERTER_PASS boundedBuffers finiteValues nativeResultReceipt")
 
 
 QML = '''import QtQuick
@@ -418,9 +445,11 @@ def native(bundle, output, host, video=False, performance=False, optics=False, c
             raise SystemExit("SKIP: Native laptop proof requires owned Niri/Wayland")
         env.update(QT_QUICK_BACKEND="rhi",QSG_RHI_BACKEND="opengl",QT_QUICK_CONTROLS_STYLE="Basic",
                    QT_QPA_PLATFORMTHEME="generic",QT_NO_XDG_DESKTOP_PORTAL="1")
-        result=session.run_qs(output/"qt",env,timeout=max(55,math.ceil(len(cases)*.55+15)))
+        deadline=max(55,math.ceil(len(cases)*.55+15))
+        result=session.run_qs(output/"qt",env,timeout=deadline)
     log=result.stdout
     (output/'native.log').write_text(log)
+    record_native_process(output,result,cases,deadline,contact)
     if result.returncode or "COMPANION_NATIVE_CAPTURE_DONE" not in log or any(bad in log for bad in
         ("COMPANION_NATIVE_FAIL","ReferenceError:","TypeError:","Unable to assign","Binding loop")):
         raise SystemExit("Native laptop fixture failed: "+log[-7000:])
