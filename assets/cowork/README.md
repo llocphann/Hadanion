@@ -32,3 +32,17 @@ real four-rim visuals/input and GPU costs remain open in the canonical
 [Companion TODO](../../to-do/cloud-bot/ABYSS_WATER_DROPLET_COMPANION.md). These
 assets do not qualify original G0, strict lossless rendering, resource savings
 or reference parity. No private model, desktop screenshot or vault is a fixture.
+
+`CoworkPerformance.js` stages the presentation policy with the existing Behavior
+Director and a caller-owned monotonic clock. Opening, looping, close and optional
+bounded success/alert cues use epoch tokens. Drag/chat/modal/travel, cast change,
+lock/fullscreen, off/quiet, reduced motion, unsupported placement and clock failure
+release the prop immediately. Brief context changes use a one-second exit grace;
+an interrupted opening reverses its current authored pose. Late or early finished
+signals cannot restart an intro. Loop switches blend poses for 140 ms.
+
+This library is a **synthetic staging contract**, not the live actor or an
+authorization API. Only the permitted host owner may supply semantics and cues;
+AI text cannot call it. No desktop event subscription, permanent timer, inference
+or new window is created. Runtime integration still needs one explicit actor
+owner and physical acceptance; the library does not authorize rollout.
