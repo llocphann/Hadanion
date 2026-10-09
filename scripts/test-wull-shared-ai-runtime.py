@@ -133,6 +133,46 @@ ShellRoot {
   })
   return true
  }
+ function checkJournalReceipts(): bool {
+  // Synthetic acknowledgements: no journal path is read or written and no
+  // worker/model is invoked. The receipt must match the actual button request.
+  const state=Persistent.states.wullCheckIn
+  const saved={date:state.date,mood:state.mood,energy:state.energy}
+  const date=WullMind.today(),path="/synthetic-vault/journal.md"
+  const good={saved:true,field:"mood",value:"good",date:date,journalPath:path}
+  const invalid=[Object.assign({},good,{field:"energy",value:"high"}),
+   Object.assign({},good,{value:"great"}),Object.assign({},good,{field:"unknown"}),
+   Object.assign({},good,{date:"1900-01-01"}),Object.assign({},good,{saved:false}),
+   Object.assign({},good,{journalPath:null}),Object.assign({},good,{journalPath:""}),
+   Object.assign({},good,{journalPath:"bad\npath"}),Object.assign({},good,{journalPath:123}),
+   Object.assign({},good,{journalPath:"x".repeat(4097)}),null]
+  for(const reply of invalid){
+   state.date=date;state.mood="";state.energy=""
+   WullMind.checkInDate=date;WullMind.checkInStage="mood"
+   WullMind.journal=({schedule:[],mood:"",energy:"",journalPath:"held"})
+   WullMind.errorMessage="";WullMind.text=""
+   const serial=++WullMind.epoch
+   WullMind.pending={serial:serial,action:"check_in",automatic:false,
+    request:{field:"mood",value:"good",date:date}}
+   WullMind.busy=true
+   try {WullMind.completed(JSON.stringify({ok:true,result:reply}),0,serial)}
+   catch(e){return root.check(false,"invalid journal receipt threw")}
+   if(!root.check(!WullMind.busy && !WullMind.pending && state.mood==="" && state.energy===""
+       && WullMind.journal.journalPath==="held" && WullMind.checkInStage==="mood"
+       && WullMind.errorMessage.length>0,"invalid journal receipt advanced daily choices"))return false
+  }
+  for(const [field,value] of [["mood","good"],["energy","high"]]){
+   const serial=++WullMind.epoch
+   WullMind.pending={serial:serial,action:"check_in",automatic:false,request:{field:field,value:value,date:date}}
+   WullMind.busy=true
+   WullMind.completed(JSON.stringify({ok:true,result:{saved:true,field:field,value:value,date:date,journalPath:path}}),0,serial)
+   if(!root.check(state[field]===value && WullMind.journal.journalPath===path
+       && WullMind.checkInStage===(field==="mood" ? "energy" : ""),"matched journal receipt lost sequential choices"))return false
+  }
+  state.date=saved.date;state.mood=saved.mood;state.energy=saved.energy
+  WullMind.dismiss();WullMind.journal=({schedule:[],mood:"",energy:"",journalPath:""})
+  return true
+ }
  FloatingWindow {visible:true;implicitWidth:360;implicitHeight:180;color:"#111820"}
  Timer {
   interval:100;running:true;repeat:true
@@ -142,6 +182,7 @@ ShellRoot {
    if(root.step===0){
     if(!root.cadenceStarted){
      root.cadenceStarted=true
+     if(!root.checkJournalReceipts())return
      if(!root.checkAutomaticCompletion())return
      return
     }

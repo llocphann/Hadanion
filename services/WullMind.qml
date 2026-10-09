@@ -312,10 +312,12 @@ Singleton {
             reactionRequested("happy")
         }
     }
-    function setCheckInChoice(field, value): bool {
-        const values = field === "mood" ? ["terrible", "bad", "okay", "good", "great"]
+    function checkInChoices(field): var {
+        return field === "mood" ? ["terrible", "bad", "okay", "good", "great"]
             : field === "energy" ? ["drained", "low", "medium", "high", "peak"] : []
-        if (!values.includes(value) || field!==checkInStage || busy) return false
+    }
+    function setCheckInChoice(field, value): bool {
+        if (!checkInChoices(field).includes(value) || field!==checkInStage || busy) return false
         if (obsidianEnabled) return dispatch("check_in",{field:field,value:value,date:checkInDate})
         choiceSaved(field,value)
         return true
@@ -450,9 +452,16 @@ Singleton {
             if(contextOpen && !checkInComplete)askCheckIn(userMood ? "energy" : "mood")
             if (job.automatic) Qt.callLater(root.offerAutomatic)
         } else if (job.action==="check_in") {
-            if(result.saved===true && result.date===checkInDate) {
+            if(result?.saved===true && result.field===job.request.field && result.value===job.request.value
+                    && checkInChoices(result.field).includes(result.value)
+                    && result.date===job.request.date && result.date===checkInDate
+                    && typeof result.journalPath==="string" && result.journalPath.length>0
+                    && result.journalPath.length<=4096 && !/[\u0000\r\n]/.test(result.journalPath)) {
                 journal=Object.assign({},journal,{journalPath:result.journalPath,date:result.date})
                 choiceSaved(result.field,result.value)
+            } else {
+                errorMessage="Couldn't confirm your journal choice. Please try again."
+                say(errorMessage)
             }
         } else if (job.action==="chat") {
             const guarded=WullReplyGuard.normalizeText(result.text,result.expression)
