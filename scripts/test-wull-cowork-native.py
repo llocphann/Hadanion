@@ -60,6 +60,7 @@ def offline(folder):
 QML = '''import QtQuick
 import QtQuick.Window
 import QtQuick3D
+import QtQuick3D.Helpers
 import Quickshell
 OWNER_IMPORTS
 Window {
@@ -73,12 +74,23 @@ Window {
     OWNER_PROPERTIES
     function check(ok, why) { if(!ok) throw new Error(why) }
     function configure() {
-        if(current.performance) {configurePerformance();return}
+        if(current.performance) {
+            if(actor?.contactSurface) actor.contactSurface.enabled=false
+            configurePerformance();return
+        }
         if(current.hidden) {settle.restart();return}
         if(!actor) return
         actor.clip=current.clip;actor.phase=current.phase
         actor.opticsProfile=current.optics??"studio"
         actor.theme=current.theme;actor.propVisible=current.prop
+        if(actor.contactSurface) {
+            actor.contactSurface.enabled=current.contact??false
+            actor.contactSurface.phase=current.ripple??.12
+            actor.contactSurface.reflectionsEnabled=current.reflections??false
+            actor.contactSurface.eyePosition=contactCamera.scenePosition
+            actor.castIntoContact=current.captureSubjects??true
+            Qt.callLater(()=>actor?.contactSurface?.capture())
+        }
         settle.restart()
     }
     function vector(p) {return [p.x,p.y,p.z]}
@@ -106,6 +118,20 @@ Window {
                 emission:vector(m.emissiveFactor)})),
             hinge:vector(hinge.eulerRotation),lid:vector(actor.named("Laptop lid").scenePosition)}
         if(current.performance) proof.owner=ownerProof
+        if(actor.contactSurface) {
+            const water=actor.contactSurface,m=water.waterMaterial
+            proof.contact={enabled:water.enabled,position:vector(water.scenePosition),
+                normal:vector(water.mapDirectionToScene(Qt.vector3d(0,1,0))),
+                rgb:[m.baseColor.r,m.baseColor.g,m.baseColor.b],metalness:m.metalness,roughness:m.roughness,
+                reflections:water.reflectionsEnabled,probeVisible:water.probe.visible,
+                floorReceives:water.floor.receivesReflections,floorCasts:water.floor.castsReflections,
+                floorVertices:water.floor.geometry.positions.length,
+                floorAlpha:water.floor.geometry.colors.map(c=>c.w),
+                subjectCasters:actor.contactCasters.concat(actor.coreVolumes).map(m=>({casts:m.castsReflections,receives:m.receivesReflections})),
+                probeBox:vector(water.probe.boxSize),probeQuality:water.probe.quality,shadows:keyLight.castsShadow,
+                eye:vector(water.eyePosition),mirrorEye:vector(water.probe.scenePosition),
+                ripples:water.ripples.map(r=>({progress:r.progress,radius:r.radius,opacity:r.opacity,scale:vector(r.scale)}))}
+        }
         if(current.character==="aqua") {
             proof.left=vector(actor.named("Left water arm").scenePosition)
             proof.right=vector(actor.named("Right water arm").scenePosition)
@@ -123,7 +149,7 @@ Window {
         Rectangle {anchors.fill:parent;color:"#061119"}
         View3D {
             anchors.fill:parent
-            environment: SceneEnvironment {
+            environment:SceneEnvironment {
                 backgroundMode: SceneEnvironment.Transparent
                 lightProbe: Texture {source: STUDIO}
                 probeExposure: 1
@@ -131,13 +157,23 @@ Window {
                 antialiasingMode: SceneEnvironment.MSAA
                 antialiasingQuality: SceneEnvironment.High
             }
-            camera: camera
+            camera:root.current.contact?contactCamera:camera
+            PerspectiveCamera {
+                id:contactCamera;position:Qt.vector3d(50,76,220);fieldOfView:37
+                Component.onCompleted:lookAt(Qt.vector3d(0,36,0))
+            }
             OrthographicCamera {
                 id:camera;position:Qt.vector3d(50,76,220)
                 horizontalMagnification: 2.9;verticalMagnification:2.9
                 Component.onCompleted:lookAt(Qt.vector3d(0,36,0))
             }
-            DirectionalLight {eulerRotation:Qt.vector3d(-30,-35,0);brightness:root.current.optics==="abyss" ? 1.35 : 1.8;color:"#e6f7ff"}
+            DirectionalLight {
+                id:keyLight
+                eulerRotation:Qt.vector3d(-30,-35,0);brightness:root.current.optics==="abyss" ? 1.35 : 1.8;color:"#e6f7ff"
+                castsShadow:(root.current.contact??false)&&!root.current.hidden
+                shadowFactor:35;shadowFilter:5;shadowBias:.02
+                shadowMapQuality:Light.ShadowMapQualityLow
+            }
             DirectionalLight {eulerRotation:Qt.vector3d(-20,110,0);brightness:root.current.optics==="abyss" ? .3 : 1.3;color:"#84c5ff"}
             DirectionalLight {eulerRotation:Qt.vector3d(30,180,0);brightness:root.current.optics==="abyss" ? 1.4 : 1.6;color:"#c8eaff"}
             Node {
@@ -283,9 +319,9 @@ def performance_cases():
             for character in ("aqua","octo") for at,name,extra,phase,clip,visible in schedule]
 
 
-def native(bundle, output, host, video=False, performance=False, optics=False):
+def native(bundle, output, host, video=False, performance=False, optics=False, contact=False):
     output.mkdir(mode=0o700,parents=True,exist_ok=False)
-    receipt = converter.convert(bundle,output/"qt")
+    receipt = converter.convert(bundle,output/"qt",contact)
     # Inspect exported normals rather than trusting the authoring option label.
     normal_proofs={}
     export_receipt=json.loads((bundle/"export.json").read_text())
@@ -332,6 +368,17 @@ def native(bundle, output, host, video=False, performance=False, optics=False):
             for character in ('aqua','octo'):
                 cases.append(dict(name=character+'-face-blink',character=character,clip='laptop_thinking_loop',
                     phase=.32,rim=0,theme='#36d3f3',prop=True,optics='abyss'))
+    if contact:
+        for character in ('aqua','octo'):
+            base=dict(character=character,clip='laptop_close',phase=1,rim=0,theme='#36d3f3',prop=False,optics='abyss',contact=True,ripple=.12)
+            cases.append(dict(base,name=character+'-contact-plain',reflections=False))
+            cases.append(dict(base,name=character+'-contact-reflected',reflections=True))
+            cases.append(dict(base,name=character+'-contact-empty-probe',reflections=True,captureSubjects=False))
+            cases.append(dict(base,name=character+'-contact-wave-late',reflections=True,ripple=.72))
+            for rim in (90,180,270):cases.append(dict(base,name=character+'-contact-rim-'+str(rim),reflections=True,rim=rim))
+            for theme,label in (('#ffb967','amber'),('#ae84ff','purple'),('#24dfba','green')):
+                cases.append(dict(base,name=character+'-contact-'+label,reflections=True,theme=theme))
+            cases.append(dict(base,name=character+'-contact-off',reflections=True,hidden=True))
     static_cases=list(cases)
     if video:
         if not shutil.which("ffmpeg"):
@@ -388,6 +435,8 @@ def native(bundle, output, host, video=False, performance=False, optics=False):
         assert len(proof['cores'])==1 and proof['cores'][0]['vertices']>500
         assert proof['cores'][0]['visible']==(proof['optics']=='abyss')
         assert max(abs(a-b) for a,b in zip(proof['cores'][0]['scale'],(.9,.74,.84)))<.0001
+        if contact and not proof['name'].startswith(proof['character']+'-contact-'):
+            assert not proof['contact']['enabled'],'water receiver escaped its opt-in fixture'
         for material in proof["materials"]:
             if any(word in material["name"].lower() for word in ("liquid","theme accent","cyan iris","opaque glossy tentacles")):
                 factor=.12 if "cyan iris" in material["name"].lower() else .9 if "liquid" in material['name'].lower() else .65 if "opaque glossy tentacles" in material['name'].lower() else 1
@@ -402,6 +451,30 @@ def native(bundle, output, host, video=False, performance=False, optics=False):
                 assert max(abs(a-b*.8) for a,b in zip(material['rgb'],proof['themeRgb']))<.0001
                 assert max(abs(a-b*.8) for a,b in zip(material['emission'],proof['themeRgb']))<.0001
     for character in ("aqua","octo"):
+        if contact:
+            reflected=next(p for p in proofs if p['name']==character+'-contact-reflected')['contact']
+            late=next(p for p in proofs if p['name']==character+'-contact-wave-late')['contact']
+            assert reflected['enabled'] and reflected['reflections'] and reflected['probeVisible'] and reflected['shadows']
+            assert reflected['probeQuality']==2 and reflected['floorReceives'] and not reflected['floorCasts']
+            assert len(reflected['subjectCasters'])>50 and all(m['casts'] and not m['receives'] for m in reflected['subjectCasters'])
+            empty=next(p for p in proofs if p['name']==character+'-contact-empty-probe')['contact']
+            assert empty['reflections'] and all(not m['casts'] and not m['receives'] for m in empty['subjectCasters'])
+            assert reflected['floorVertices']==775 and len(reflected['floorAlpha'])==775
+            assert reflected['floorAlpha'][0]==1 and reflected['floorAlpha'][-1]==0
+            assert all(0<=a<=1 for a in reflected['floorAlpha'])
+            assert all(b<=a for a,b in zip(reflected['floorAlpha'],reflected['floorAlpha'][1:]))
+            assert len(reflected['ripples'])==3 and reflected['ripples'][0]['radius']!=late['ripples'][0]['radius']
+            for p in proofs:
+                if not p['name'].startswith(character+'-contact-') or p.get('hidden'):continue
+                water=p['contact'];angle=math.radians(p['rim'])
+                assert math.dist(water['normal'],(-math.sin(angle),math.cos(angle),0))<.0001
+                delta=[a-b for a,b in zip(water['eye'],water['position'])]
+                distance=sum(a*b for a,b in zip(delta,water['normal']))
+                mirror=[a-2*distance*n for a,n in zip(water['eye'],water['normal'])]
+                assert math.dist(water['mirrorEye'],mirror)<.0001,'camera was not reflected across supporting plane'
+                assert math.dist(water['probeBox'],[140,4,115] if p['rim'] in (0,180) else [4,140,115])<.0001
+                assert max(abs(a-b*.10) for a,b in zip(water['rgb'],p['themeRgb']))<.0001
+                assert abs(water['metalness']-.15)<.0001 and abs(water['roughness']-.08)<.0001
         if optics and export_receipt.get('conceptFace'):
             opened=next(p for p in proofs if p['name']==character+'-optics-blue')['eyes']
             blink=next(p for p in proofs if p['name']==character+'-face-blink')['eyes']
@@ -449,6 +522,23 @@ def native(bundle, output, host, video=False, performance=False, optics=False):
         count=sum(pixels[i:i+4]!=background for i in range(0,len(pixels),4))
         assert count==0 if case.get("hidden") else count>3000,"empty or retained native model paint"
         painted[case["name"]]=count
+    contact_pixels={}
+    if contact:
+        # A live probe flag alone is insufficient: remove only the 3D casters
+        # and require an actual reflected contribution in the fixed water ROI.
+        # This lower bound proves visible paint, not G0 parity or visual quality.
+        for character in ('aqua','octo'):
+            roi=(65,325,355,370)
+            with Image.open(frames/(character+'-contact-reflected.png')) as image:
+                reflected=image.convert('RGB').crop(roi).tobytes()
+            with Image.open(frames/(character+'-contact-empty-probe.png')) as image:
+                empty=image.convert('RGB').crop(roi).tobytes()
+            differences=[max(abs(reflected[i+c]-empty[i+c]) for c in range(3))
+                         for i in range(0,len(reflected),3)]
+            contribution=sum(d>=8 for d in differences)
+            assert contribution>200,'native water did not reflect the 3D subject'
+            contact_pixels[character]={'roi':roi,'subjectPixelsAtLeast8':contribution,
+                                       'maxChannelDifference':max(differences)}
     movies=[]
     if video:
         for character in ("aqua","octo"):
@@ -462,7 +552,8 @@ def native(bundle, output, host, video=False, performance=False, optics=False):
     receipt.update(scope="Original staged mesh/material/Timeline only; not production, G0/G1 or input acceptance",
                    frames=len(cases),staticFrames=len(static_cases),paintedPixels=painted,
                    movies=movies,proofs=proofs,performanceFixture=performance,opticsFixture=optics,
-                   bubbleNormalProof=normal_proofs,conceptFace=export_receipt.get('conceptFace',False),exitCode=result.returncode)
+                   bubbleNormalProof=normal_proofs,conceptFace=export_receipt.get('conceptFace',False),
+                   contactFixture=contact,contactPaintProof=contact_pixels,exitCode=result.returncode)
     (output/"result.json").write_text(json.dumps(receipt,indent=2)+"\n")
     print("COMPANION_NATIVE_QML_PASS "+str(len(cases))+" fixedFrames oneLoader pairedClips fourRims fourThemes propYield")
 
@@ -474,6 +565,7 @@ if __name__=="__main__":
     parser.add_argument("--video",action="store_true",help="also retain two short original 3D review movies")
     parser.add_argument("--performance",action="store_true",help="also prove synthetic native controller interruptions and blends")
     parser.add_argument("--optics",action="store_true",help="also compare eight themed refractive Abyss staging poses")
+    parser.add_argument("--contact",action="store_true",help="also compare native water/reflection/ripple/rim poses; requires Qt 6.12")
     parser.add_argument("--hadalis-root",type=Path,default=Path(os.environ.get("HADALIS_ROOT",ROOT.parent/"Hadalis")))
     args=parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="hadanion-cowork-converter-") as temporary:
@@ -482,4 +574,5 @@ if __name__=="__main__":
     if args.video and not args.bundle:parser.error("--video requires the owned --bundle and --output")
     if args.performance and not args.bundle:parser.error("--performance requires the owned --bundle and --output")
     if args.optics and not args.bundle:parser.error("--optics requires the owned --bundle and --output")
-    if args.bundle:native(args.bundle.resolve(),args.output.resolve(),args.hadalis_root.resolve(),args.video,args.performance,args.optics)
+    if args.contact and not args.bundle:parser.error("--contact requires the owned --bundle and --output")
+    if args.bundle:native(args.bundle.resolve(),args.output.resolve(),args.hadalis_root.resolve(),args.video,args.performance,args.optics,args.contact)

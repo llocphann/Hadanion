@@ -115,3 +115,26 @@ Delta transforms preserve the original eye-closing driver; all four 3D eye
 layers retain the eye as their parent. The optical proof adds one closed-blink
 pose per character and inspects actual transforms/parenting. This unsaved study
 does not change the original `.blend` files or claim concept approval.
+
+## Native water contact proposal
+
+Add `--contact` to the native proof command to create a dormant 3D water receiver
+and three shared torus ripples in each generated actor. A fixed radial mesh
+fades the receiver to zero alpha at its outer edge. Its normal, reflection
+receiver box and mirrored camera follow the supporting rim. Only subject
+geometry casts into the local probe; only the water receives it. The probe uses
+512 × 512 cube faces and captures on the caller's explicit request, with no
+permanent timer or `EveryFrame` mode. This option requires Qt Quick 3D 6.12.
+
+The 22 additional fixed captures include both characters, four rims, four
+palettes, advancing wave phase, reflection off, an empty-probe control and
+complete actor unload. The control keeps the visible body, camera and surface
+unchanged while disabling subject reflection casting. A fixed water-region
+paint check requires an actual body contribution; probe flags alone do not
+qualify reflection. It can be combined with `--optics --performance`.
+
+This remains a private native material/geometry study. It is not a shipping
+planar-reflection provider, input/occlusion acceptance, concept parity, fluid
+simulation or a G0 lossless comparison. Cube-map artifacts and optical fidelity
+still need visual review; surface/probe/shadow costs are unmeasured. No installed
+package, saved Blender asset, production shader or user preference is changed.

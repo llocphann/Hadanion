@@ -10,6 +10,9 @@ import json
 import math
 from pathlib import Path
 import struct
+import shutil
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def number(value):
@@ -90,7 +93,7 @@ class Asset:
         return meshes
 
 
-def qml_component(character, folder, output):
+def qml_component(character, folder, output, contact=False):
     receipt = json.loads((folder.parent / "export.json").read_text())["characters"][character]
     assets = {name: Asset(folder / (name+".gltf")) for name in receipt["clips"]}
     for name, asset in assets.items():
@@ -158,6 +161,11 @@ function snapshot() {
              "readonly property var materials: ["+",".join("mat"+str(i) for i in range(len(base.g["materials"])))+",matCore]",
              "readonly property var coreVolumes: [core"+str(core_nodes[0])+"]",
              "readonly property var objects: ["+",".join("n"+str(i) for i in range(len(names)))+"]"]
+    if contact:
+        lines += ['readonly property alias contactSurface: waterContact',
+                  'WaterContact {id:waterContact;theme:root.theme}',
+                  'property bool castIntoContact: true',
+                  'readonly property var contactCasters: ['+','.join('subject'+str(i) for i,n in enumerate(base.g['nodes']) if 'mesh' in n)+']']
     for i, material in enumerate(base.g["materials"]):
         name = material["name"]
         pbr = material.get("pbrMetallicRoughness", {})
@@ -235,7 +243,11 @@ function snapshot() {
                 tap = targets[target_names.index("LaptopTap")]["POSITION"]
                 endpoint = max(range(len(tap)), key=lambda j: abs(tap[j][1]))
                 result += ["readonly property vector3d tapTip: n"+str(index)+".mapPositionToScene(geo"+str(index)+".positions["+str(endpoint)+"])"]
-            result += ["Model {", "objectName: "+json.dumps(names[index]+" mesh"), "materials: [mat"+str(mesh["material"])+"]",
+            result += ["Model {"]
+            if contact:
+                # Volumes cast into the supporting water without self-reflection.
+                result += ['id:subject'+str(index),'castsReflections:root.castIntoContact;receivesReflections:false']
+            result += ["objectName: "+json.dumps(names[index]+" mesh"), "materials: [mat"+str(mesh["material"])+"]",
                        "geometry: ProceduralMesh { id: geo"+str(index), "property var data: Data.meshes["+str(mesh_index)+"]",
                        "indexes: data.indexes"]
             if targets:
@@ -249,7 +261,7 @@ function snapshot() {
                     objectName:"Staged liquid core volume"
                     visible:root.opticsProfile==="abyss"
                     scale:Qt.vector3d(.90,.74,.84);y:-2.5
-                    materials:[matCore];geometry:geo'''+str(index)+"\n}"]
+                    materials:[matCore];geometry:geo'''+str(index)+( '\ncastsReflections:root.castIntoContact;receivesReflections:false' if contact else '')+"\n}"]
         for child in node.get("children", []):
             result += node_lines(child, (*ancestors,index))
         return result+["}"]
@@ -312,9 +324,10 @@ function snapshot() {
             "keyframes":keyframes,"clips":len(assets),"qmlSha256":hashlib.sha256(component.read_bytes()).hexdigest()}
 
 
-def convert(bundle, output):
+def convert(bundle, output, contact=False):
     output.mkdir(mode=0o700, parents=True, exist_ok=False)
-    receipt = {character: qml_component(character, bundle/character, output) for character in ("aqua","octo")}
+    if contact:shutil.copy2(ROOT/'assets/cowork/WaterContact.qml',output/'WaterContact.qml')
+    receipt = {character: qml_component(character, bundle/character, output,contact) for character in ("aqua","octo")}
     (output / "native.json").write_text(json.dumps(receipt,indent=2)+"\n")
     return receipt
 
@@ -324,5 +337,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bundle", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--contact",action="store_true",help="include the dormant 3D water-contact proposal")
     args = parser.parse_args()
-    print("COMPANION_NATIVE_CONVERT_PASS "+json.dumps(convert(args.bundle.resolve(),args.output.resolve())))
+    print("COMPANION_NATIVE_CONVERT_PASS "+json.dumps(convert(args.bundle.resolve(),args.output.resolve(),args.contact)))
