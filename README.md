@@ -37,6 +37,8 @@ Uninstall detaches the runtime. Preferences, chat history, Obsidian notes and pr
 ```sh
 make build
 make test HADALIS_ROOT=/path/to/Hadalis
+# Include the optional Obsidian package for journal regression checks:
+make test HADALIS_ROOT=/path/to/Hadalis HADALIRD_ROOT=/path/to/Hadalird
 ```
 
 With current Hadalis hosts, Obsidian helpers belong to the optional Hadalird

@@ -4,7 +4,7 @@ build:
 	cargo build --locked --release --workspace --manifest-path native/Cargo.toml
 
 test: build
-	python3 scripts/validate.py --hadalis-root "$(HADALIS_ROOT)"
+	python3 scripts/validate.py --hadalis-root "$(HADALIS_ROOT)" $(if $(strip $(HADALIRD_ROOT)),--hadalird-root "$(HADALIRD_ROOT)")
 
 install: build
 	python3 scripts/install.py install
