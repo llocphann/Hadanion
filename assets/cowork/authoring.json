@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "blender": "4.3.0",
+  "stagedOnly": true,
+  "characters": {
+    "Aqua": {
+      "source": "assets/aqua/AquaMotion.blend",
+      "sourceSha256": "1c4d8cff83428c01d3d1b49b748bcf8734e6ea48df32fb76d3944b9f4cfa0575",
+      "blendSha256": "941a838255f621dcd9dca188b9acb5859f8a70ffdbcdc37b95d6cd3676e69d5a",
+      "curvesSha256": "771dab9fea7ef2686d5f1b5185a7e7a8e9c5f61503d450c973db7cdda5613571",
+      "oldClips": 30,
+      "newClips": 8,
+      "propMeshes": 29
+    },
+    "Octo": {
+      "source": "assets/octo/OctoMotion.blend",
+      "sourceSha256": "f3e29e4a40f1d91d93ef4ea92016b7086181bacb7ddfb45a867a8c14a0db811f",
+      "blendSha256": "7748240a8be15d21d537debec41ac5fca884070aa560fc289f0f973e30ad03d0",
+      "curvesSha256": "617ee398906e6a04ece600792c0fa1118ca422c5fec2c47dddff10faaf82304c",
+      "oldClips": 30,
+      "newClips": 8,
+      "propMeshes": 29
+    }
+  }
+}
