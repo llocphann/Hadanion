@@ -39,6 +39,13 @@ make build
 make test HADALIS_ROOT=/path/to/Hadalis
 ```
 
+With current Hadalis hosts, Obsidian helpers belong to the optional Hadalird
+package. Journal checks can stage its committed source privately:
+`python3 scripts/validate.py --hadalis-root /clean/Hadalis --hadalird-root /clean/Hadalird --require-clean --only test-wull-local-mind.py test-wull-shared-ai-runtime.py test-wull-journal-ui.py WullMind.qml`.
+This builds no resident service, installs nothing and changes no user settings.
+Chat/history do not require Obsidian; missing journal integration returns a
+bounded error only when a journal action is explicitly requested.
+
 Validation uses an isolated host checkout and fake inference fixtures; it does not modify the live desktop or call a real LLM. See the [documentation index](docs/README.md) for host API, extraction provenance, renderer runbooks and Mochi × Mak1zu × Hadalis decisions. **Only the [visual/behavior TODO](to-do/cloud-bot/ABYSS_WATER_DROPLET_COMPANION.md) and [AI TODO](to-do/cloud-bot/WULL_LOCAL_AI.md) are active**; [imported historical milestones](to-do/archive/README.md) and [retired research](docs/archive/README.md) are frozen archives, not current implementation instructions. Historical Hadalis evidence remains source-pinned and is not a test result for this repository.
 
 License: GPL-3.0-or-later; imported source attribution is retained.
