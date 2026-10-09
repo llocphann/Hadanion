@@ -35,11 +35,12 @@ def environment(output):
     image.save()
 
 
-def export(output, smooth_bubbles=False):
+def export(output, smooth_bubbles=False, concept_face=False):
     output.mkdir(mode=0o700, parents=True, exist_ok=False)
     authored = json.loads((ROOT / "assets/cowork/authoring.json").read_text())
     receipt = {"schema": 1, "stagedOnly": True, "blender": bpy.app.version_string,
-               "bakedHz": 60, "lossless": "NOT_CLAIMED", "smoothBubbleNormals":smooth_bubbles, "characters": {}}
+               "bakedHz": 60, "lossless": "NOT_CLAIMED", "smoothBubbleNormals":smooth_bubbles,
+               "conceptFace":concept_face, "characters": {}}
     for character in ("Aqua", "Octo"):
         blend = ROOT / "assets/cowork" / (character + "Laptop.blend")
         digest = hashlib.sha256(blend.read_bytes()).hexdigest()
@@ -49,6 +50,18 @@ def export(output, smooth_bubbles=False):
         scene = bpy.context.scene
         rig = bpy.data.objects[character + " Motion Controls"]
         scene.render.fps = 60
+        if concept_face:
+            # Delta transforms retain the authored eyeOpen driver and all
+            # original keys. Children inherit the same blink and eye volume.
+            eyes=[o for o in scene.objects if o.name.startswith("Glossy eye")]
+            assert len(eyes)==2
+            for eye in eyes:
+                eye.delta_scale=(1.4,1.4,1.4)
+                eye.delta_location.z=5
+            for obj in scene.objects:
+                if obj.name.startswith("Preview eye ") and obj.name.endswith(" pupil"):
+                    obj.scale=(.58,.23,.64)
+                    obj.location.z=.17
         # glTF has no object-visibility channel. Keep the prop geometry in every
         # exported clip; the native fixture's one propVisible gate removes it.
         # Removing these drivers changes this unsaved staging copy only.
@@ -108,5 +121,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--smooth-bubbles",action="store_true",help="smooth normals in the unsaved native staging copy only")
+    parser.add_argument("--concept-face",action="store_true",help="larger raised glossy eyes in the unsaved staging copy; retain authored blinking")
     args=parser.parse_args()
-    export(args.output.resolve(),args.smooth_bubbles)
+    export(args.output.resolve(),args.smooth_bubbles,args.concept_face)

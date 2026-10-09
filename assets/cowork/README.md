@@ -108,3 +108,10 @@ The lighting study reduces overexposure and keeps the theme hue across layers.
 This is an optical **proposal**, not Blender/Cycles parity, a fluid simulation,
 concept approval or the installed liquid shader. Extra core/material costs are
 unmeasured. Do not ship it or infer GPU/resource savings from private captures.
+
+Optional `--concept-face` on the Blender exporter raises and enlarges both
+glossy eye volumes, with wider pupils that leave a smaller lower iris crescent.
+Delta transforms preserve the original eye-closing driver; all four 3D eye
+layers retain the eye as their parent. The optical proof adds one closed-blink
+pose per character and inspects actual transforms/parenting. This unsaved study
+does not change the original `.blend` files or claim concept approval.

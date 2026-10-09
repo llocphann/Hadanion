@@ -96,6 +96,10 @@ Window {
         const proof={name:current.name,character:current.character,clip:current.clip,phase:current.phase,
             rim:current.rim,theme:String(actor.theme),propVisible:prop.visible,
             optics:actor.opticsProfile,themeRgb:[actor.theme.r,actor.theme.g,actor.theme.b],
+            eyes:actor.objects.filter(n=>n.objectName.startsWith("Glossy eye")).map(n=>({
+                name:n.objectName,position:vector(n.position),scale:vector(n.scale),
+                children:actor.objects.filter(c=>c.parent===n).map(c=>({name:c.objectName,
+                    position:vector(c.position),scale:vector(c.scale)}))})),
             cores:actor.coreVolumes.map(c=>({visible:c.visible,scale:vector(c.scale),vertices:c.geometry.positions.length})),
             materials:actor.materials.map(m=>({name:m.objectName,color:String(m.baseColor),rgb:[m.baseColor.r,m.baseColor.g,m.baseColor.b],
                 alpha:m.baseColor.a,transmission:m.transmissionFactor,thickness:m.thicknessFactor,
@@ -324,6 +328,10 @@ def native(bundle, output, host, video=False, performance=False, optics=False):
             for theme,label in (("#36d3f3","blue"),("#ffb967","amber"),("#ae84ff","purple"),("#24dfba","green")):
                 cases.append(dict(name=character+"-optics-"+label,character=character,clip="laptop_typing_loop",
                     phase=.12,rim=0,theme=theme,prop=True,optics="abyss"))
+        if export_receipt.get('conceptFace'):
+            for character in ('aqua','octo'):
+                cases.append(dict(name=character+'-face-blink',character=character,clip='laptop_thinking_loop',
+                    phase=.32,rim=0,theme='#36d3f3',prop=True,optics='abyss'))
     static_cases=list(cases)
     if video:
         if not shutil.which("ffmpeg"):
@@ -365,11 +373,13 @@ def native(bundle, output, host, video=False, performance=False, optics=False):
                    QT_QPA_PLATFORMTHEME="generic",QT_NO_XDG_DESKTOP_PORTAL="1")
         result=session.run_qs(output/"qt",env,timeout=max(55,math.ceil(len(cases)*.55+15)))
     log=result.stdout
+    (output/'native.log').write_text(log)
     if result.returncode or "COMPANION_NATIVE_CAPTURE_DONE" not in log or any(bad in log for bad in
         ("COMPANION_NATIVE_FAIL","ReferenceError:","TypeError:","Unable to assign","Binding loop")):
         raise SystemExit("Native laptop fixture failed: "+log[-7000:])
     proofs=json.loads(next(line.split("COMPANION_NATIVE_PROOFS ",1)[1] for line in log.splitlines()
                           if "COMPANION_NATIVE_PROOFS " in line))
+    (output/'geometry-proofs.json').write_text(json.dumps(proofs,indent=2)+'\n')
     assert len(proofs)==len(cases)
     for proof in proofs:
         if proof.get("hidden"):
@@ -392,6 +402,18 @@ def native(bundle, output, host, video=False, performance=False, optics=False):
                 assert max(abs(a-b*.8) for a,b in zip(material['rgb'],proof['themeRgb']))<.0001
                 assert max(abs(a-b*.8) for a,b in zip(material['emission'],proof['themeRgb']))<.0001
     for character in ("aqua","octo"):
+        if optics and export_receipt.get('conceptFace'):
+            opened=next(p for p in proofs if p['name']==character+'-optics-blue')['eyes']
+            blink=next(p for p in proofs if p['name']==character+'-face-blink')['eyes']
+            assert len(opened)==len(blink)==2
+            for eye,closed in zip(opened,blink):
+                assert closed['name']==eye['name'] and closed['scale'][1]<eye['scale'][1]*.2,'larger eyes lost authored blink'
+                assert eye['scale'][0]>6,'eye volume was not enlarged'
+                assert abs(eye['position'][1]-(-1 if character=='aqua' else 4))<.0001,'eye volume was not raised'
+                children=eye['children'];assert len(children)==4,'eye layers lost shared parent'
+                pupil=next(c for c in children if c['name'].endswith(' pupil'))
+                assert math.dist(pupil['scale'],(.58,.64,.23))<.0001
+                assert abs(pupil['position'][1]-.17)<.0001
         paired=[p for p in proofs if p["name"].startswith(character+"-typing-")]
         zero,tap,other,end=paired
         if character=="aqua":
@@ -440,7 +462,7 @@ def native(bundle, output, host, video=False, performance=False, optics=False):
     receipt.update(scope="Original staged mesh/material/Timeline only; not production, G0/G1 or input acceptance",
                    frames=len(cases),staticFrames=len(static_cases),paintedPixels=painted,
                    movies=movies,proofs=proofs,performanceFixture=performance,opticsFixture=optics,
-                   bubbleNormalProof=normal_proofs,exitCode=result.returncode)
+                   bubbleNormalProof=normal_proofs,conceptFace=export_receipt.get('conceptFace',False),exitCode=result.returncode)
     (output/"result.json").write_text(json.dumps(receipt,indent=2)+"\n")
     print("COMPANION_NATIVE_QML_PASS "+str(len(cases))+" fixedFrames oneLoader pairedClips fourRims fourThemes propYield")
 
