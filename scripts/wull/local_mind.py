@@ -7,6 +7,7 @@ explicit check_in action can update today's mood/energy frontmatter.
 """
 from __future__ import annotations
 import ipaddress
+import importlib.util
 import os
 import codecs
 import json
@@ -19,12 +20,9 @@ import urllib.request
 from datetime import date, datetime
 
 HOST=Path(sys.argv[sys.argv.index('--host-root')+1]) if '--host-root' in sys.argv else Path(os.environ.get('HADALIS_ROOT', Path(__file__).resolve().parents[2]))
-TODO=HOST/'scripts/todo'
 sys.path.insert(0,str(HOST/'scripts/ai'))
-sys.path.insert(0,str(TODO))
 sys.path.insert(0,str(Path(__file__).resolve().parent))
-import obsidian_daily_todo as daily
-import obsidian_todo as core
+daily=core=None
 from gguf_runtime import complete as gguf_complete,RuntimeErrorLocal
 import history_store
 from reply_guard import public_text, public_reply, UnsafeReply
@@ -40,6 +38,41 @@ THINKING_EFFORTS={
 MAX_RESPONSE=128*1024
 class MindError(Exception):
     def __init__(self,code,message):self.code=code;super().__init__(message)
+
+def journal_modules():
+    """Load the host-owned resolver only for explicit journal actions.
+
+    Older hosts keep it in-tree; extracted hosts validate Hadalird through
+    their existing finite package inspector. Chat/history never require it.
+    Neither request text nor a model can choose an import directory.
+    """
+    global daily,core
+    if daily is not None:return daily,core
+    folder=HOST/'scripts/todo'
+    if not all((folder/name).is_file() for name in ('obsidian_daily_todo.py','obsidian_todo.py')):
+        inspector=HOST/'scripts/hadalird-status.py'
+        if not inspector.is_file():raise MindError('integration_unavailable','Obsidian integration is not installed.')
+        spec=importlib.util.spec_from_file_location('hadalird_status',inspector)
+        status=importlib.util.module_from_spec(spec);spec.loader.exec_module(status)
+        found=status.inspect(HOST)
+        if found.get('available') is not True:
+            raise MindError('integration_unavailable','Obsidian integration is unavailable or needs repair.')
+        folder=Path(found['root'])/'scripts/todo'
+    folder=folder.resolve()
+    if not all((folder/name).is_file() for name in ('obsidian_daily_todo.py','obsidian_todo.py')):
+        raise MindError('integration_unavailable','Obsidian journal helpers are unavailable.')
+    sys.path.insert(0,str(folder))
+    import obsidian_daily_todo
+    import obsidian_todo
+    if any(not Path(module.__file__).resolve().is_relative_to(folder)
+           for module in (obsidian_daily_todo,obsidian_todo)):
+        raise MindError('integration_unavailable','Obsidian journal helper identity changed.')
+    daily,core=obsidian_daily_todo,obsidian_todo
+    return daily,core
+
+def journal_errors():
+    return (MindError,core.TodoError) if core is not None else (MindError,)
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self,*args,**kwargs):raise MindError('redirect_blocked','Local endpoint redirected the request')
 
@@ -102,6 +135,7 @@ def clean(text,limit=180):
     return re.sub(r'\s+',' ',s).strip()[:limit]
 
 def read_note(vault,relative):
+    journal_modules()
     try:
         _,_,path=core.resolve_note(str(vault),relative)
         if path.stat().st_size>256*1024:raise MindError('note_too_large','Configured note is too large')
@@ -165,6 +199,7 @@ def check_in(options,now=None):
     if options.get('date')!=day.isoformat():raise MindError('date_changed','The day changed. Please start a new check-in.')
     vault=str(options.get('vault','')).strip()
     if not vault:raise MindError('vault_unavailable','Connect your Obsidian journal first.')
+    journal_modules()
     _,_,path,_=daily.resolve_daily_note(vault,str(options.get('dailyFolder') or daily.DEFAULT_FOLDER),
         str(options.get('dailyFormat') or daily.DEFAULT_FORMAT),day.isoformat())
     raw=path.read_bytes()
@@ -195,6 +230,7 @@ def context(options,now=None):
     secondary=str(options.get('referenceVault','')).strip()
     result={'date':day.isoformat(),'mood':'','energy':'','schedule':[],'journalPath':'','vaults':[]}
     if not primary:return result
+    journal_modules()
     seen=set();daily_schedule=[];recurring=[]
     for position,path in enumerate([primary,secondary]):
         if not path:continue
@@ -349,7 +385,7 @@ if __name__=='__main__':
         raw=sys.stdin.buffer.readline(16385)
         if len(raw)>16384:raise MindError('request_too_large','Companion request exceeded the limit')
         result={'ok':True,'result':dispatch(json.loads(raw))}
-    except (MindError,core.TodoError) as exc:result={'ok':False,'error':{'code':exc.code,'message':str(exc)[:160]}}
+    except journal_errors() as exc:result={'ok':False,'error':{'code':exc.code,'message':str(exc)[:160]}}
     except OSError:result={'ok':False,'error':{'code':'file_unavailable','message':'Configured local file is unavailable'}}
     except (ValueError,TypeError,KeyError,UnicodeError):result={'ok':False,'error':{'code':'invalid_request','message':'Invalid companion data'}}
     print(json.dumps(result,ensure_ascii=False,separators=(',',':')))

@@ -14,7 +14,7 @@ installer = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(installer)
 
 
-def stage(host, target):
+def stage(host, target, integration=None, integration_sha=None):
     target.mkdir()
     for name in ("modules", "services", "scripts", "defaults", "translations"):
         shutil.copytree(host / name, target / name, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
@@ -45,6 +45,13 @@ def stage(host, target):
     shutil.copy2(ROOT / "services/WullModelPolicy.js", target / "services/WullModelPolicy.js")
     for path in (host / "scripts/ai").glob("*.py"):
         shutil.copy2(path, target / "scripts/wull" / path.name)
+    if integration:
+        # Private optional dependency payload, never a user installation or
+        # permission change. Reuse the integration owner's package builder.
+        spec = importlib.util.spec_from_file_location("hadalird_installer", integration / "scripts/install.py")
+        builder = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(builder)
+        builder.assemble(integration, target / "optional/hadalird", integration_sha)
     # Authoring and reference checks operate on the repository assets, not payload.
     (target / "assets").unlink()
     shutil.copytree(host / "assets", target / "assets")
@@ -55,6 +62,7 @@ def stage(host, target):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--hadalis-root", type=Path, required=True)
+    parser.add_argument("--hadalird-root", type=Path, help="optional pinned journal integration for private tests")
     parser.add_argument("--require-clean", action="store_true", help="require exact committed source in both repositories")
     parser.add_argument("--only", nargs="*", help="run selected checks during development")
     args = parser.parse_args()
@@ -62,7 +70,11 @@ def main():
     if not (host / "services/Hadanion.qml").is_file():
         raise SystemExit("Hadalis host API 1 source is required")
     revisions = {}
-    for name, repo in (("Hadanion", ROOT), ("Hadalis", host)):
+    sources = [("Hadanion", ROOT), ("Hadalis", host)]
+    integration = args.hadalird_root.resolve() if args.hadalird_root else None
+    if integration:
+        sources.append(("Hadalird", integration))
+    for name, repo in sources:
         revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True)
         status = subprocess.run(["git", "status", "--porcelain", "--untracked-files=all"], cwd=repo, capture_output=True, text=True)
         dirty = bool(status.stdout.strip())
@@ -73,7 +85,7 @@ def main():
             raise SystemExit("Exact committed source is required")
     checks = [["cargo", "test", "--locked", "--offline", "--workspace", "--manifest-path", str(ROOT / "native/Cargo.toml")]]
     with tempfile.TemporaryDirectory(prefix="hadanion-validation-") as temporary:
-        work = stage(host, Path(temporary) / "host")
+        work = stage(host, Path(temporary) / "host", integration, revisions.get(integration))
         environment = os.environ.copy()
         environment.update(HADALIS_ROOT=str(work), HADANION_SOURCE=str(ROOT), PYTHONDONTWRITEBYTECODE="1")
         # A per-run isolated user package is essential when validating on a machine
@@ -89,7 +101,7 @@ def main():
             "test-companion-volume.py", "test-wull-shader-ab-contract.py",
             "test-wull-shader-sequence-contract.py", "test-wull-g1-resource-contract.py",
             "test-wull-g1-compare-contract.py", "test-wull-companion-voice-eval.py", "test-wull-reply-guard-local.py",
-            "test-wull-memory-store.py", "test-wull-local-persona.py", "test-wull-companion-voice-run.py", "test-wull-companion-settings.py", "test-wull-quality-ui.py", "test-wull-mind-ui.py",
+            "test-wull-memory-store.py", "test-wull-local-persona.py", "test-wull-companion-voice-run.py", "test-wull-companion-settings.py", "test-wull-quality-ui.py", "test-wull-mind-ui.py", "test-wull-journal-ui.py",
             "test-wull-immersion-runtime.py", "test-wull-cloud-orbit.py", "test-wull-cowork-qml.py", "test-wull-cowork-native.py")]
         qml_parser = "/usr/lib/qt6/bin/qmlformat" if Path("/usr/lib/qt6/bin/qmlformat").is_file() else shutil.which("qmlformat")
         if not qml_parser:
@@ -107,7 +119,7 @@ def main():
             "test-wull-gguf-ui.py", "test-wull-shared-ai-runtime.py", "test-wull-abyss-water.py",
             "test-wull-portal-runtime.py", "test-wull-presence-interaction.py", "test-wull-alive-reactions.py",
             "test-wull-mature-popup.py", "test-companion-airborne-orientation.py", "test-companion-volume.py",
-            "test-wull-mind-ui.py", "test-wull-cloud-orbit.py",
+            "test-wull-mind-ui.py", "test-wull-journal-ui.py", "test-wull-cloud-orbit.py",
         }
         sessions = work / "validation-sessions"
         sessions.mkdir()

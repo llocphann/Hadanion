@@ -6,6 +6,9 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
+import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -185,6 +188,34 @@ class Tests(unittest.TestCase):
     def test_empty_context_and_invalid_action(self):
         self.assertEqual(mind.context({})['schedule'],[])
         with self.assertRaises(mind.MindError):mind.dispatch({'action':'write_note'})
+
+    def test_optional_journal_absence_does_not_break_history(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            folder=Path(temporary);host=folder/'host'
+            shutil.copytree(mind.HOST/'scripts/ai',host/'scripts/ai')
+            inspector=mind.HOST/'scripts/hadalird-status.py'
+            if inspector.is_file():shutil.copy2(inspector,host/'scripts/hadalird-status.py')
+            env=dict(os.environ,HADALIS_ROOT=str(host),XDG_DATA_HOME=str(folder/'data'),
+                     INIR_WULL_HISTORY_DB=str(folder/'chat.sqlite3'))
+            def call(payload):
+                result=subprocess.run([sys.executable,str(ROOT/'scripts/wull/local_mind.py')],
+                    input=json.dumps(payload)+'\n',capture_output=True,text=True,env=env,timeout=5)
+                self.assertEqual(result.returncode,0,result.stderr)
+                return json.loads(result.stdout)
+            self.assertTrue(call({'action':'history_clear'})['ok'])
+            self.assertEqual(call({'action':'history'})['result']['messages'],[])
+            request={'action':'check_in','date':datetime.now().date().isoformat(),
+                     'field':'mood','value':'good','vault':str(folder/'unread-vault')}
+            missing=call(request)
+            self.assertFalse(missing['ok']);self.assertEqual(missing['error']['code'],'integration_unavailable')
+            self.assertFalse((folder/'unread-vault').exists())
+            package=mind.HOST/'optional/hadalird'
+            if package.is_dir():
+                copied=host/'optional/hadalird';shutil.copytree(package,copied)
+                (copied/'scripts/todo/obsidian_todo.py').write_text("raise RuntimeError('modified helper executed')\n")
+                tampered=call(request)
+                self.assertFalse(tampered['ok']);self.assertEqual(tampered['error']['code'],'integration_unavailable')
+                self.assertTrue(call({'action':'history'})['ok'])
 
     def test_explicit_checkin_preserves_journal(self):
         with tempfile.TemporaryDirectory() as t:

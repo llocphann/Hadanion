@@ -36,6 +36,7 @@ core=runpy.run_path(str(ROOT/'scripts/wull-manual-visual-matrix.py'))
 try:
     with tempfile.TemporaryDirectory(prefix='wull-mind-ui-') as temporary:
         private=Path(temporary);shell,xdg=core['staged'](private)
+        fixture.mind.journal_modules()
         journal=private/'vault'/fixture.mind.daily._render_daily_path('00_Capture/01_Journal',fixture.mind.daily.DEFAULT_FORMAT,datetime.now().date())
         journal.parent.mkdir(parents=True)
         journal.write_text('---\nmood:\nenergy:\nprivate: preserved\n---\n## Day Planner\n')
