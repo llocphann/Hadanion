@@ -123,7 +123,33 @@ function morph(base,targets,weights,channel,normal) {
     lines = ["import QtQuick", "import QtQuick3D", "import QtQuick3D.Helpers", "import QtQuick.Timeline",
              'import "'+character.title()+'Geometry.js" as Data', "Node {", "id: root",
              'property string clip: "laptop_typing_loop"', "property real phase: 0", "property bool propVisible: true",
+             'readonly property string character: '+json.dumps(character),
              'property color theme: "#36d3f3"', "property bool active: true", "visible: active",
+             "property var blendFrom: null", "property real blendProgress: 1",
+             '''function fraction() {return Math.max(0,Math.min(1,blendProgress))}
+function blendedVector(index,channel,current) {
+    const a=blendFrom?.[index]?.[channel],t=fraction()
+    return !a||t>=1 ? current : Qt.vector3d(a[0]*(1-t)+current.x*t,a[1]*(1-t)+current.y*t,a[2]*(1-t)+current.z*t)
+}
+function blendedRotation(index,current) {
+    const a=blendFrom?.[index]?.rotation,t=fraction()
+    if(!a||t>=1)return current
+    const dot=a[0]*current.scalar+a[1]*current.x+a[2]*current.y+a[3]*current.z
+    const sign=dot<0?-1:1
+    const q=[a[0]*(1-t)+current.scalar*t*sign,a[1]*(1-t)+current.x*t*sign,
+        a[2]*(1-t)+current.y*t*sign,a[3]*(1-t)+current.z*t*sign]
+    const length=Math.hypot(...q)
+    return length>0 ? Qt.quaternion(...q.map(v=>v/length)) : current
+}
+function blendedWeight(index,channel,current) {
+    const a=blendFrom?.[index]?.weights?.[channel],t=fraction()
+    return a===undefined||t>=1 ? current : a*(1-t)+current*t
+}
+function snapshot() {
+    return objects.map(n=>({position:[n.position.x,n.position.y,n.position.z],
+        scale:[n.scale.x,n.scale.y,n.scale.z],rotation:[n.rotation.scalar,n.rotation.x,n.rotation.y,n.rotation.z],
+        weights:n.morphWeights?n.morphWeights.slice():[]}))
+}''',
              "function step(times,values,t) {let i=0;while(i+1<times.length&&times[i+1]<=t+.0001)i++;return values[i]}",
              "function named(name) { return objects.find(n=>n.objectName===name)??null }",
              "readonly property var materials: ["+",".join("mat"+str(i) for i in range(len(base.g["materials"])))+"]",
@@ -166,9 +192,12 @@ function morph(base,targets,weights,channel,normal) {
         if "matrix" in node:
             raise ValueError("unexpected matrix transform")
         result = ["Node { id: n"+str(index), "objectName: "+json.dumps(names[index]),
-                  "position: "+vector(node.get("translation", [0,0,0])),
-                  "scale: "+vector(node.get("scale", [1,1,1])),
-                  "rotation: "+vector(node.get("rotation", [0,0,0,1]), True)]
+                  "property vector3d rawPosition: "+vector(node.get("translation", [0,0,0])),
+                  "property vector3d rawScale: "+vector(node.get("scale", [1,1,1])),
+                  "property quaternion rawRotation: "+vector(node.get("rotation", [0,0,0,1]), True),
+                  "position: root.blendedVector("+str(index)+",\"position\",rawPosition)",
+                  "scale: root.blendedVector("+str(index)+",\"scale\",rawScale)",
+                  "rotation: root.blendedRotation("+str(index)+",rawRotation)"]
         if names[index] == "Laptop root":
             result.append("visible: root.propVisible")
         if "mesh" in node:
@@ -178,7 +207,7 @@ function morph(base,targets,weights,channel,normal) {
             for j in range(len(targets)):
                 value = node.get("weights", base.g["meshes"][mesh_index].get("weights", [0]*len(targets)))[j]
                 result.append("property real w"+str(j)+": "+number(value))
-            weights = "["+",".join("n"+str(index)+".w"+str(j) for j in range(len(targets)))+"]"
+            weights = "["+",".join("root.blendedWeight("+str(index)+","+str(j)+",n"+str(index)+".w"+str(j)+")" for j in range(len(targets)))+"]"
             result += ["readonly property var morphWeights: "+weights]
             if names[index] in ("Tentacle 1", "Tentacle 2"):
                 target_names = base.g["meshes"][mesh_index]["extras"]["targetNames"]
@@ -229,7 +258,7 @@ function morph(base,targets,weights,channel,normal) {
             else:
                 if len(values) != len(times):
                     raise ValueError("invalid transform key count")
-                tracks = [({"translation":"position","rotation":"rotation","scale":"scale"}[path],
+                tracks = [({"translation":"rawPosition","rotation":"rawRotation","scale":"rawScale"}[path],
                            [vector(v,path=="rotation") for v in values])]
             for property_name, keys in tracks:
                 if interpolation == "STEP":

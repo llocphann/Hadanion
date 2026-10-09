@@ -76,3 +76,16 @@ shipping format. The renderer/event-owner integration remains open.
 Add `--video` to the proof command to retain two short native 3D review movies
 and their original PNG frames. The movies are review artifacts; they are not
 sprite assets, a GPU timing measurement or lossless-renderer evidence.
+
+Add `--performance` to also connect the dormant controller to the single native
+actor using fixed synthetic events and one caller-owned clock. The 48 additional
+frames cover opening, typing/agent/thinking switches, alert, drag release, stale
+callbacks, reversal of a partly opened lid, close and off for both characters.
+Native transforms and morph weights crossfade from a captured pose; quaternion
+rotation uses the shortest arc. No extra animation clock is introduced. Checks
+run after painting and inspect actual positions, scales, rotations and weights
+at transition boundaries. Their numeric pose bound is a staging geometry check,
+not a G0 pixel tolerance or proof of lossless rendering.
+
+This option supplies no real desktop event bridge, permission flow, live actor
+integration or cost measurement. It changes only generated private previews.
