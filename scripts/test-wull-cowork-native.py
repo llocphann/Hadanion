@@ -77,6 +77,7 @@ Window {
         if(current.hidden) {settle.restart();return}
         if(!actor) return
         actor.clip=current.clip;actor.phase=current.phase
+        actor.opticsProfile=current.optics??"studio"
         actor.theme=current.theme;actor.propVisible=current.prop
         settle.restart()
     }
@@ -94,7 +95,11 @@ Window {
         check(prop.visible===current.prop,"prop lifecycle mismatch")
         const proof={name:current.name,character:current.character,clip:current.clip,phase:current.phase,
             rim:current.rim,theme:String(actor.theme),propVisible:prop.visible,
-            materials:actor.materials.map(m=>({name:m.objectName,color:String(m.baseColor),alpha:m.baseColor.a,transmission:m.transmissionFactor})),
+            optics:actor.opticsProfile,themeRgb:[actor.theme.r,actor.theme.g,actor.theme.b],
+            cores:actor.coreVolumes.map(c=>({visible:c.visible,scale:vector(c.scale),vertices:c.geometry.positions.length})),
+            materials:actor.materials.map(m=>({name:m.objectName,color:String(m.baseColor),rgb:[m.baseColor.r,m.baseColor.g,m.baseColor.b],
+                alpha:m.baseColor.a,transmission:m.transmissionFactor,thickness:m.thicknessFactor,
+                emission:vector(m.emissiveFactor)})),
             hinge:vector(hinge.eulerRotation),lid:vector(actor.named("Laptop lid").scenePosition)}
         if(current.performance) proof.owner=ownerProof
         if(current.character==="aqua") {
@@ -118,6 +123,7 @@ Window {
                 backgroundMode: SceneEnvironment.Transparent
                 lightProbe: Texture {source: STUDIO}
                 probeExposure: 1
+                tonemapMode: SceneEnvironment.TonemapModeLinear
                 antialiasingMode: SceneEnvironment.MSAA
                 antialiasingQuality: SceneEnvironment.High
             }
@@ -127,9 +133,9 @@ Window {
                 horizontalMagnification: 2.9;verticalMagnification:2.9
                 Component.onCompleted:lookAt(Qt.vector3d(0,36,0))
             }
-            DirectionalLight {eulerRotation:Qt.vector3d(-30,-35,0);brightness:1.8;color:"#e6f7ff"}
-            DirectionalLight {eulerRotation:Qt.vector3d(-20,110,0);brightness:1.3;color:"#84c5ff"}
-            DirectionalLight {eulerRotation:Qt.vector3d(30,180,0);brightness:1.6;color:"#c8eaff"}
+            DirectionalLight {eulerRotation:Qt.vector3d(-30,-35,0);brightness:root.current.optics==="abyss" ? 1.35 : 1.8;color:"#e6f7ff"}
+            DirectionalLight {eulerRotation:Qt.vector3d(-20,110,0);brightness:root.current.optics==="abyss" ? .3 : 1.3;color:"#84c5ff"}
+            DirectionalLight {eulerRotation:Qt.vector3d(30,180,0);brightness:root.current.optics==="abyss" ? 1.4 : 1.6;color:"#c8eaff"}
             Node {
                 position:Qt.vector3d(0,36,0)
                 eulerRotation.z:root.current.rim
@@ -213,6 +219,7 @@ function configurePerformance() {
     actor.clip=owner.view.active?owner.view.clip:"laptop_close"
     actor.phase=owner.view.active?owner.view.progress:1
     actor.propVisible=owner.view.renderProp;actor.theme=current.theme
+    actor.opticsProfile=current.optics??"studio"
     ownerProof.blendProgress=actor.blendProgress
     settle.restart()
 }
@@ -272,9 +279,24 @@ def performance_cases():
             for character in ("aqua","octo") for at,name,extra,phase,clip,visible in schedule]
 
 
-def native(bundle, output, host, video=False, performance=False):
+def native(bundle, output, host, video=False, performance=False, optics=False):
     output.mkdir(mode=0o700,parents=True,exist_ok=False)
     receipt = converter.convert(bundle,output/"qt")
+    # Inspect exported normals rather than trusting the authoring option label.
+    normal_proofs={}
+    export_receipt=json.loads((bundle/"export.json").read_text())
+    if optics and export_receipt.get('smoothBubbleNormals'):
+        for character in ('aqua','octo'):
+            asset=converter.Asset(bundle/character/'laptop_typing_loop.gltf')
+            values=[]
+            for node in asset.g['nodes']:
+                if not node['name'].startswith('Orbital bubble '):continue
+                mesh=asset.g['meshes'][node['mesh']]['primitives'][0]
+                positions=asset.read(mesh['attributes']['POSITION']);normals=asset.read(mesh['attributes']['NORMAL'])
+                values.append(min(sum(p*n for p,n in zip(point,normal))/math.hypot(*point)/math.hypot(*normal)
+                    for point,normal in zip(positions,normals)))
+            assert len(values)==8 and min(values)>.995,'orbital bubble shading is still faceted'
+            normal_proofs[character]=values
     session_spec = importlib.util.spec_from_file_location("native_session",host/"scripts/native_test_session.py")
     session = importlib.util.module_from_spec(session_spec)
     session_spec.loader.exec_module(session)
@@ -297,6 +319,11 @@ def native(bundle, output, host, video=False, performance=False):
         cases.append(dict(name=character+"-off",character=character,hidden=True,
             clip="laptop_close",phase=1,rim=0,theme="#36d3f3",prop=False))
     if performance:cases.extend(performance_cases())
+    if optics:
+        for character in ("aqua","octo"):
+            for theme,label in (("#36d3f3","blue"),("#ffb967","amber"),("#ae84ff","purple"),("#24dfba","green")):
+                cases.append(dict(name=character+"-optics-"+label,character=character,clip="laptop_typing_loop",
+                    phase=.12,rim=0,theme=theme,prop=True,optics="abyss"))
     static_cases=list(cases)
     if video:
         if not shutil.which("ffmpeg"):
@@ -348,11 +375,22 @@ def native(bundle, output, host, video=False, performance=False):
         if proof.get("hidden"):
             assert proof["actorCount"]==0
             continue
+        assert len(proof['cores'])==1 and proof['cores'][0]['vertices']>500
+        assert proof['cores'][0]['visible']==(proof['optics']=='abyss')
+        assert max(abs(a-b) for a,b in zip(proof['cores'][0]['scale'],(.9,.74,.84)))<.0001
         for material in proof["materials"]:
             if any(word in material["name"].lower() for word in ("liquid","theme accent","cyan iris","opaque glossy tentacles")):
-                assert material["color"]==proof["theme"],"theme did not recolor all original volumes"
+                factor=.12 if "cyan iris" in material["name"].lower() else .9 if "liquid" in material['name'].lower() else .65 if "opaque glossy tentacles" in material['name'].lower() else 1
+                if proof['optics']=='abyss':
+                    assert max(abs(a-b*factor) for a,b in zip(material['rgb'],proof['themeRgb']))<.0001,"material lost theme hue"
+                else:assert material["color"]==proof["theme"],"theme did not recolor all original volumes"
             if "opaque glossy tentacles" in material["name"].lower():
                 assert material["alpha"]==1 and material["transmission"]==0,"Octo limb depth/opacity mismatch"
+            if proof['optics']=='abyss' and 'liquid' in material['name'].lower():
+                assert abs(material['transmission']-.3)<.0001 and material['thickness']==8
+            if material['name']=='Staged inner core':
+                assert max(abs(a-b*.8) for a,b in zip(material['rgb'],proof['themeRgb']))<.0001
+                assert max(abs(a-b*.8) for a,b in zip(material['emission'],proof['themeRgb']))<.0001
     for character in ("aqua","octo"):
         paired=[p for p in proofs if p["name"].startswith(character+"-typing-")]
         zero,tap,other,end=paired
@@ -401,7 +439,8 @@ def native(bundle, output, host, video=False, performance=False):
             movies.append(str(path))
     receipt.update(scope="Original staged mesh/material/Timeline only; not production, G0/G1 or input acceptance",
                    frames=len(cases),staticFrames=len(static_cases),paintedPixels=painted,
-                   movies=movies,proofs=proofs,performanceFixture=performance,exitCode=result.returncode)
+                   movies=movies,proofs=proofs,performanceFixture=performance,opticsFixture=optics,
+                   bubbleNormalProof=normal_proofs,exitCode=result.returncode)
     (output/"result.json").write_text(json.dumps(receipt,indent=2)+"\n")
     print("COMPANION_NATIVE_QML_PASS "+str(len(cases))+" fixedFrames oneLoader pairedClips fourRims fourThemes propYield")
 
@@ -412,6 +451,7 @@ if __name__=="__main__":
     parser.add_argument("--output",type=Path)
     parser.add_argument("--video",action="store_true",help="also retain two short original 3D review movies")
     parser.add_argument("--performance",action="store_true",help="also prove synthetic native controller interruptions and blends")
+    parser.add_argument("--optics",action="store_true",help="also compare eight themed refractive Abyss staging poses")
     parser.add_argument("--hadalis-root",type=Path,default=Path(os.environ.get("HADALIS_ROOT",ROOT.parent/"Hadalis")))
     args=parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="hadanion-cowork-converter-") as temporary:
@@ -419,4 +459,5 @@ if __name__=="__main__":
     if bool(args.bundle)!=bool(args.output):parser.error("--bundle and --output must be supplied together")
     if args.video and not args.bundle:parser.error("--video requires the owned --bundle and --output")
     if args.performance and not args.bundle:parser.error("--performance requires the owned --bundle and --output")
-    if args.bundle:native(args.bundle.resolve(),args.output.resolve(),args.hadalis_root.resolve(),args.video,args.performance)
+    if args.optics and not args.bundle:parser.error("--optics requires the owned --bundle and --output")
+    if args.bundle:native(args.bundle.resolve(),args.output.resolve(),args.hadalis_root.resolve(),args.video,args.performance,args.optics)

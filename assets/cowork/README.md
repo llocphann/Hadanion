@@ -89,3 +89,22 @@ not a G0 pixel tolerance or proof of lossless rendering.
 
 This option supplies no real desktop event bridge, permission flow, live actor
 integration or cost measurement. It changes only generated private previews.
+
+## Abyss optical study
+
+Export with `--smooth-bubbles`, then capture with `--optics` to add eight fixed
+blue/amber/purple/green poses. `--performance` can be combined with it. The
+unsaved Blender export smooths only the original orbital bubble normals; it
+never changes the saved scenes, mesh shape or authored keys. The proof checks
+the actual radial normals of all sixteen bubbles.
+
+The optional `abyss` material profile uses a smooth reflective coat, bounded
+transmission with IOR/volume attenuation, a separate smaller 3D inner core,
+dark glossy irises and theme-linked emission. Core geometry is shared with the
+original body and follows its parent; it is hidden in the studio profile and
+unloads with the single actor. Octo limbs retain alpha 1 and zero transmission.
+The lighting study reduces overexposure and keeps the theme hue across layers.
+
+This is an optical **proposal**, not Blender/Cycles parity, a fluid simulation,
+concept approval or the installed liquid shader. Extra core/material costs are
+unmeasured. Do not ship it or infer GPU/resource savings from private captures.

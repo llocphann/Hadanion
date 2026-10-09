@@ -103,6 +103,8 @@ def qml_component(character, folder, output):
     names = [node.get("name", "") for node in base.g["nodes"]]
     if len(set(names)) != len(names):
         raise ValueError("ambiguous original object names")
+    core_nodes=[i for i,name in enumerate(names) if name in ('Liquid body','Octo liquid head')]
+    if len(core_nodes)!=1:raise ValueError('one original body volume is required')
     for asset in assets.values():
         if [n.get("name", "") for n in asset.g["nodes"]] != names or asset.geometry() != geometry:
             raise ValueError("geometry changed across a baked performance")
@@ -125,6 +127,7 @@ function morph(base,targets,weights,channel,normal) {
              'property string clip: "laptop_typing_loop"', "property real phase: 0", "property bool propVisible: true",
              'readonly property string character: '+json.dumps(character),
              'property color theme: "#36d3f3"', "property bool active: true", "visible: active",
+             'property string opticsProfile: "studio"',
              "property var blendFrom: null", "property real blendProgress: 1",
              '''function fraction() {return Math.max(0,Math.min(1,blendProgress))}
 function blendedVector(index,channel,current) {
@@ -152,15 +155,20 @@ function snapshot() {
 }''',
              "function step(times,values,t) {let i=0;while(i+1<times.length&&times[i+1]<=t+.0001)i++;return values[i]}",
              "function named(name) { return objects.find(n=>n.objectName===name)??null }",
-             "readonly property var materials: ["+",".join("mat"+str(i) for i in range(len(base.g["materials"])))+"]",
+             "readonly property var materials: ["+",".join("mat"+str(i) for i in range(len(base.g["materials"])))+",matCore]",
+             "readonly property var coreVolumes: [core"+str(core_nodes[0])+"]",
              "readonly property var objects: ["+",".join("n"+str(i) for i in range(len(names)))+"]"]
     for i, material in enumerate(base.g["materials"]):
         name = material["name"]
         pbr = material.get("pbrMetallicRoughness", {})
         extensions = material.get("extensions", {})
         original = pbr.get("baseColorFactor", [1,1,1,1])
+        liquid = "liquid" in name.lower()
+        iris = "cyan iris" in name.lower()
+        limb = "opaque glossy tentacles" in name.lower()
         if any(word in name.lower() for word in ("liquid", "theme accent", "cyan iris", "opaque glossy tentacles")):
-            color = "root.theme"
+            factor = .12 if iris else .9 if liquid else .65 if limb else 1
+            color = "root.opticsProfile===\"abyss\" ? Qt.rgba(root.theme.r*"+number(factor)+",root.theme.g*"+number(factor)+",root.theme.b*"+number(factor)+",1) : root.theme"
         elif "anodized" in name.lower():
             color = "Qt.rgba(root.theme.r*.075,root.theme.g*.075,root.theme.b*.075,1)"
         else:
@@ -172,13 +180,26 @@ function snapshot() {
             transmission = .16
         if "opaque glossy tentacles" in name.lower():
             transmission = 0
+        emission = vector(material.get("emissiveFactor", [0,0,0]))
+        if iris or "theme accent" in name.lower():
+            gain = .025 if iris else .5
+            emission = "root.opticsProfile===\"abyss\" ? Qt.vector3d(root.theme.r*"+number(gain)+",root.theme.g*"+number(gain)+",root.theme.b*"+number(gain)+") : "+emission
         lines += ["PrincipledMaterial { id: mat"+str(i), "objectName: "+json.dumps(name), "baseColor: "+color,
                   "metalness: "+number(pbr.get("metallicFactor", 1)),
-                  "roughness: "+number(pbr.get("roughnessFactor", 1)),
-                  "clearcoatAmount: "+number(extensions.get("KHR_materials_clearcoat", {}).get("clearcoatFactor", 0)),
-                  "transmissionFactor: "+number(transmission),
+                  "roughness: "+("root.opticsProfile===\"abyss\" ? .045 : " if liquid else "")+number(pbr.get("roughnessFactor", 1)),
+                  "clearcoatAmount: "+("root.opticsProfile===\"abyss\" ? .75 : " if liquid or limb else "")+number(extensions.get("KHR_materials_clearcoat", {}).get("clearcoatFactor", 0)),
+                  "clearcoatRoughnessAmount: .08",
+                  "transmissionFactor: "+("root.opticsProfile===\"abyss\" ? .3 : " if liquid else "")+number(transmission),
+                  "thicknessFactor: "+("root.opticsProfile===\"abyss\" ? 8 : 0" if liquid else "0"),
+                  "attenuationDistance: 60", "attenuationColor: root.theme",
                   "indexOfRefraction: "+number(extensions.get("KHR_materials_ior", {}).get("ior", 1.5)),
-                  "emissiveFactor: "+vector(material.get("emissiveFactor", [0,0,0])), "}"]
+                  "emissiveFactor: "+emission, "}"]
+    lines += ['''PrincipledMaterial {
+    id:matCore;objectName:"Staged inner core"
+    baseColor:Qt.rgba(root.theme.r*.8,root.theme.g*.8,root.theme.b*.8,1)
+    emissiveFactor:Qt.vector3d(root.theme.r*.8,root.theme.g*.8,root.theme.b*.8)
+    roughness:.16;metalness:0;clearcoatAmount:.25
+}''']
     parents = {}
     for i, node in enumerate(base.g["nodes"]):
         for child in node.get("children", []):
@@ -223,6 +244,12 @@ function snapshot() {
             else:
                 result += ["positions: Data.vectors(data.positions)", "normals: Data.vectors(data.normals)"]
             result += ["}", "}"]
+            if names[index] in ("Liquid body","Octo liquid head"):
+                result += ['Model { id:core'+str(index)+'''
+                    objectName:"Staged liquid core volume"
+                    visible:root.opticsProfile==="abyss"
+                    scale:Qt.vector3d(.90,.74,.84);y:-2.5
+                    materials:[matCore];geometry:geo'''+str(index)+"\n}"]
         for child in node.get("children", []):
             result += node_lines(child, (*ancestors,index))
         return result+["}"]

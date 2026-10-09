@@ -35,11 +35,11 @@ def environment(output):
     image.save()
 
 
-def export(output):
+def export(output, smooth_bubbles=False):
     output.mkdir(mode=0o700, parents=True, exist_ok=False)
     authored = json.loads((ROOT / "assets/cowork/authoring.json").read_text())
     receipt = {"schema": 1, "stagedOnly": True, "blender": bpy.app.version_string,
-               "bakedHz": 60, "lossless": "NOT_CLAIMED", "characters": {}}
+               "bakedHz": 60, "lossless": "NOT_CLAIMED", "smoothBubbleNormals":smooth_bubbles, "characters": {}}
     for character in ("Aqua", "Octo"):
         blend = ROOT / "assets/cowork" / (character + "Laptop.blend")
         digest = hashlib.sha256(blend.read_bytes()).hexdigest()
@@ -53,6 +53,8 @@ def export(output):
         # exported clip; the native fixture's one propVisible gate removes it.
         # Removing these drivers changes this unsaved staging copy only.
         for obj in scene.objects:
+            if smooth_bubbles and obj.type=="MESH" and obj.name.startswith("Orbital bubble "):
+                for polygon in obj.data.polygons:polygon.use_smooth=True
             if obj.get("hadanion_original_prop"):
                 obj.driver_remove("hide_render")
                 obj.driver_remove("hide_viewport")
@@ -105,4 +107,6 @@ def export(output):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
-    export(parser.parse_args().output.resolve())
+    parser.add_argument("--smooth-bubbles",action="store_true",help="smooth normals in the unsaved native staging copy only")
+    args=parser.parse_args()
+    export(args.output.resolve(),args.smooth_bubbles)
