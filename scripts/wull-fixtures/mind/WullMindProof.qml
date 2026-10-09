@@ -101,8 +101,18 @@ Window {
                 check(!!composer && composer.visible && !!profileButton && profileButton.visible
                     && !!sendButton && sendButton.visible,
                     "chat composer/model effort selector missing")
+                // Opening the composer schedules a Qt Layout polish. A visible
+                // control can still belong to a zero-width parent in that turn.
+                // Wait for the parent geometry, independently of the size gate.
+                tryVerify(()=>Math.abs(composer.width-(cloud.width-24))<.6
+                    && profileButton.implicitWidth>0,1000,"composer layout did not settle")
+                const effortGeometry=JSON.stringify({width:profileButton.width,
+                    implicitWidth:profileButton.implicitWidth,composerWidth:composer.width,
+                    cloudWidth:cloud.width,label:WullMind.thinkingEffortShortLabel,
+                    fontScale:Appearance.fontSizeScale})
                 check(profileButton.width<130 && profileButton.width<composer.width/2,
-                    "collapsed effort control did not size to its label")
+                    "collapsed effort control did not size to its label "+effortGeometry)
+                console.log("WULL_COMPOSER_GEOMETRY="+effortGeometry)
                 check(Math.abs((profileButton.y+profileButton.height/2)-(sendButton.y+sendButton.height/2))<2,
                     "effort control and Send are not on the same composer row")
                 mouseClick(profileButton);wait(50)
