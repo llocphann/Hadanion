@@ -386,7 +386,7 @@ Singleton {
         const job=pending
         if (!job || job.serial!==epoch || serial!==job.serial) return
         pending=null;busy=false;deadline.stop()
-        if (job.automatic && (!hostVisible || !hostIdle || conversationOpen || proactive!=="occasional")) {
+        if (job.automatic && (!hostVisible || !hostIdle || conversationOpen || contextOpen || !proactiveIdleEnabled)) {
             if (connectionStatus==="generating") connectionStatus="disconnected"
             return
         }
@@ -479,7 +479,7 @@ Singleton {
     onAiEnabledChanged: if(!aiEnabled && pending?.action==="ai_chat")cancel()
     onModelChanged: {if(pending?.action==="ai_chat")cancel();connectionStatus=available ? "ready" : "model-unavailable"}
     onContextKeyChanged: {if(pending) cancel();journal=({schedule:[],mood:"",energy:"",journalPath:""});lastContext=0;lastContextAttempt=0}
-    onProactiveChanged: if(!proactiveIdleEnabled && pending?.automatic)cancel()
+    onProactiveIdleEnabledChanged: if(!proactiveIdleEnabled && pending?.automatic)cancel()
     onHostVisibleChanged: if (!hostVisible) {if(pending?.automatic) cancel();if(!conversationOpen){text="";checkInStage="";contextOpen=false}}
     onTalkEnabledChanged: if(!talkEnabled) {cancel();dismiss()}
     IdleMonitor {id:idleMonitor;enabled:root.hostVisible && root.talkEnabled && root.proactiveIdleEnabled;timeout:60;respectInhibitors:true}

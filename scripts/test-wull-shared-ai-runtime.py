@@ -57,6 +57,8 @@ ShellRoot {
  property int invalidIndex:0
  property string previousText:""
  property int assistantCount:0
+ property bool cadenceStarted:false
+ property bool cadenceComplete:false
  function check(ok,message): bool {
   if(ok)return true
   console.error("WULL_SHARED_AI_FAIL",message);Qt.quit();return false
@@ -66,6 +68,71 @@ ShellRoot {
    local:true,requires_key:false,provider_id:"fixture",api_format:"openai",
    capabilities:{chat:"supported",reasoning:"supported"}})
  }
+ function checkAutomaticCompletion(): bool {
+  // Synthetic helper completion only: no vault, model, notification or timer
+  // is invoked. The startup gate keeps deferred automatic offers dormant.
+  Config.setNestedValue("abyss.companionMind.obsidianEnabled",false)
+  WullMind.hostVisible=true;WullMind.hostIdle=true
+  WullMind.conversationOpen=false;WullMind.contextOpen=false
+  for(const cadence of ["rare","occasional","regular","often"]){
+   Config.setNestedValue("abyss.companionMind.proactive",cadence)
+   const serial=++WullMind.epoch
+   WullMind.journal=({schedule:[],marker:"before"})
+   WullMind.pending={serial:serial,action:"context",request:{},automatic:true}
+   WullMind.busy=true
+   WullMind.completed(JSON.stringify({ok:true,result:{schedule:[],marker:cadence}}),0,serial)
+   if(!root.check(!WullMind.busy && !WullMind.pending && WullMind.journal.marker===cadence,
+       "automatic helper discarded enabled cadence "+cadence))return false
+  }
+  for(const gate of ["manual","hidden","active","conversation","context"]){
+   Config.setNestedValue("abyss.companionMind.proactive",gate==="manual" ? "manual" : "occasional")
+   WullMind.hostVisible=gate!=="hidden";WullMind.hostIdle=gate!=="active"
+   WullMind.conversationOpen=gate==="conversation";WullMind.contextOpen=gate==="context"
+   const serial=++WullMind.epoch
+   WullMind.journal=({schedule:[],marker:"held"})
+   WullMind.pending={serial:serial,action:"context",request:{},automatic:true}
+   WullMind.busy=true
+   WullMind.completed(JSON.stringify({ok:true,result:{schedule:[],marker:"late"}}),0,serial)
+   if(!root.check(!WullMind.busy && !WullMind.pending && WullMind.journal.marker==="held",
+       "automatic helper bypassed "+gate+" gate"))return false
+  }
+  // An explicit context request remains valid while its own UI is open.
+  Config.setNestedValue("abyss.companionMind.proactive","manual")
+  WullMind.hostVisible=true;WullMind.hostIdle=false
+  WullMind.conversationOpen=false;WullMind.contextOpen=true
+  const serial=++WullMind.epoch
+  WullMind.pending={serial:serial,action:"context",request:{},automatic:false}
+  WullMind.busy=true
+  WullMind.completed(JSON.stringify({ok:true,result:{schedule:[],marker:"explicit"}}),0,serial)
+  if(!root.check(WullMind.journal.marker==="explicit","explicit context request used automatic gates"))return false
+  // Cadence revocation invalidates the original epoch before a late response.
+  WullMind.contextOpen=false;WullMind.hostIdle=true
+  Config.setNestedValue("abyss.companionMind.proactive","regular")
+  if(!root.check(WullMind.proactive==="regular" && WullMind.proactiveIdleEnabled,
+      "revocation fixture did not observe the enabled cadence"))return false
+  const revoked=++WullMind.epoch
+  WullMind.pending={serial:revoked,action:"context",request:{},automatic:true}
+  WullMind.busy=true
+  // Give settings bindings and the late delivery separate event-loop turns,
+  // matching an actual in-flight helper rather than coalesced test writes.
+  Qt.callLater(()=>{
+   Config.setNestedValue("abyss.companionMind.proactive","manual")
+   Qt.callLater(()=>{
+    if(!root.check(WullMind.epoch>revoked && !WullMind.busy && !WullMind.pending,
+        "cadence revocation did not cancel the pending automatic request"))return
+    WullMind.completed(JSON.stringify({ok:true,result:{schedule:[],marker:"revoked"}}),0,revoked)
+    if(!root.check(WullMind.epoch>revoked && !WullMind.busy && !WullMind.pending
+        && WullMind.journal.marker==="explicit","late helper survived cadence revocation "+
+        JSON.stringify({epoch:WullMind.epoch,revoked:revoked,busy:WullMind.busy,
+          pending:!!WullMind.pending,marker:WullMind.journal.marker,
+          cadence:WullMind.proactive,enabled:WullMind.proactiveIdleEnabled})))return
+    WullMind.hostVisible=false;WullMind.hostIdle=false
+    WullMind.journal=({schedule:[],mood:"",energy:"",journalPath:""})
+    root.cadenceComplete=true
+   })
+  })
+  return true
+ }
  FloatingWindow {visible:true;implicitWidth:360;implicitHeight:180;color:"#111820"}
  Timer {
   interval:100;running:true;repeat:true
@@ -73,6 +140,12 @@ ShellRoot {
    if(++root.ticks>160){root.check(false,"requests did not settle");return}
    if(!Config.ready || !Hadanion.available)return
    if(root.step===0){
+    if(!root.cadenceStarted){
+     root.cadenceStarted=true
+     if(!root.checkAutomaticCompletion())return
+     return
+    }
+    if(!root.cadenceComplete)return
     Ai._initialized=true
     const originalPrompt=Config.options.ai.systemPrompt
     const substitutions=Ai.promptSubstitutions
@@ -157,7 +230,7 @@ ShellRoot {
     Config.setNestedValue("abyss.companionMind.localOnly",true)
     if(!root.check(!WullMind.busy && !WullMind.aiSession.busy && !WullMind.history.some(entry=>entry.content==="Queued cloud fixture"),"revoking cloud opt-in did not cancel the queued request"))return
     Config.setNestedValue("abyss.companionMind.model","")
-    console.info("WULL_SHARED_AI_PASS catalog request history-isolation persistence HTTP-error cancel retry model-follow output-rejection recovery localDefault cloudBlock spoofBlock localAutoFallback consentRevoke");Qt.quit()
+    console.info("WULL_SHARED_AI_PASS catalog request history-isolation persistence HTTP-error cancel retry model-follow output-rejection recovery localDefault cloudBlock spoofBlock localAutoFallback consentRevoke automaticCadences automaticGates cadenceRevocation");Qt.quit()
    }
   }
  }
