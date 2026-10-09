@@ -116,6 +116,14 @@ layers retain the eye as their parent. The optical proof adds one closed-blink
 pose per character and inspects actual transforms/parenting. This unsaved study
 does not change the original `.blend` files or claim concept approval.
 
+Optional `--smooth-eyes` smooths the two outer glossy eye meshes in the unsaved
+export. An offline comparison with a prior export using the same other options
+checks exact oriented Float32 surface/UV/morph data, materials, parents and all
+animation keys despite glTF vertex merging. Only outer eye normals may differ:
+`python3 scripts/test-wull-cowork-native.py --bundle /new/smooth-export --reference-bundle /preserved/face-export --output /new/owned/audit`.
+This command opens no compositor and establishes no native visual, shipping,
+concept, G0/G1 or resource acceptance.
+
 ## Native water contact proposal
 
 Add `--contact` to the native proof command to create a dormant 3D water receiver

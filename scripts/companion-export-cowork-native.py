@@ -35,12 +35,12 @@ def environment(output):
     image.save()
 
 
-def export(output, smooth_bubbles=False, concept_face=False):
+def export(output, smooth_bubbles=False, concept_face=False, smooth_eyes=False):
     output.mkdir(mode=0o700, parents=True, exist_ok=False)
     authored = json.loads((ROOT / "assets/cowork/authoring.json").read_text())
     receipt = {"schema": 1, "stagedOnly": True, "blender": bpy.app.version_string,
                "bakedHz": 60, "lossless": "NOT_CLAIMED", "smoothBubbleNormals":smooth_bubbles,
-               "conceptFace":concept_face, "characters": {}}
+               "conceptFace":concept_face, "smoothEyeNormals":smooth_eyes,"characters": {}}
     for character in ("Aqua", "Octo"):
         blend = ROOT / "assets/cowork" / (character + "Laptop.blend")
         digest = hashlib.sha256(blend.read_bytes()).hexdigest()
@@ -67,6 +67,8 @@ def export(output, smooth_bubbles=False, concept_face=False):
         # Removing these drivers changes this unsaved staging copy only.
         for obj in scene.objects:
             if smooth_bubbles and obj.type=="MESH" and obj.name.startswith("Orbital bubble "):
+                for polygon in obj.data.polygons:polygon.use_smooth=True
+            if smooth_eyes and obj.type=="MESH" and obj.name.startswith("Glossy eye"):
                 for polygon in obj.data.polygons:polygon.use_smooth=True
             if obj.get("hadanion_original_prop"):
                 obj.driver_remove("hide_render")
@@ -122,5 +124,6 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--smooth-bubbles",action="store_true",help="smooth normals in the unsaved native staging copy only")
     parser.add_argument("--concept-face",action="store_true",help="larger raised glossy eyes in the unsaved staging copy; retain authored blinking")
+    parser.add_argument("--smooth-eyes",action="store_true",help="smooth outer eye normals in the unsaved staging copy only; retain mesh surface and blink keys")
     args=parser.parse_args()
-    export(args.output.resolve(),args.smooth_bubbles,args.concept_face)
+    export(args.output.resolve(),args.smooth_bubbles,args.concept_face,args.smooth_eyes)

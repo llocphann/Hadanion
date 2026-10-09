@@ -51,7 +51,7 @@ class Asset:
         accessor = self.g["accessors"][index]
         if accessor.get("sparse") or accessor.get("normalized"):
             raise ValueError("unsupported generated accessor")
-        size = {"SCALAR": 1, "VEC3": 3, "VEC4": 4}[accessor["type"]]
+        size = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4}[accessor["type"]]
         code, width = {5123: ("H", 2), 5125: ("I", 4), 5126: ("f", 4)}[accessor["componentType"]]
         view = self.g["bufferViews"][accessor["bufferView"]]
         if view.get("buffer", 0) != 0:

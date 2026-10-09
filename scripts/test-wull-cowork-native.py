@@ -6,6 +6,8 @@ test the bounded converter offline. Native captures use a new owned compositor,
 fixed sampled poses and one Loader3D actor. They are not G0/G1 or input proof.
 """
 import argparse
+from collections import Counter
+import hashlib
 import importlib.util
 import json
 import math
@@ -20,6 +22,114 @@ ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("cowork_native", ROOT / "scripts/companion-cowork-native.py")
 converter = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(converter)
+
+
+def surface(asset, primitive, omit_normal=False):
+    """Compare exact Float32 corner data, retaining triangle winding and count.
+
+    Smooth normals can merge glTF vertices. Index/vertex counts alone therefore
+    cannot establish an unchanged surface or UV seam.
+    """
+    attributes = {k: asset.read(v) for k, v in primitive['attributes'].items()
+                  if not (omit_normal and k == 'NORMAL')}
+    targets = [{k: asset.read(v) for k, v in target.items()}
+               for target in primitive.get('targets', [])]
+    count = len(attributes['POSITION'])
+    assert all(len(v) == count for v in attributes.values())
+    assert all(len(v) == count for target in targets for v in target.values())
+    indexes = [row[0] for row in asset.read(primitive['indices'])]
+    assert primitive.get('mode', 4) == 4 and len(indexes) % 3 == 0
+    assert all(isinstance(i, int) and 0 <= i < count for i in indexes)
+    def corner(index):
+        return (tuple((k, tuple(v[index])) for k, v in sorted(attributes.items())),
+                tuple(tuple((k, tuple(v[index])) for k, v in sorted(target.items()))
+                      for target in targets))
+    triangles = Counter()
+    for i in range(0, len(indexes), 3):
+        a, b, c = (corner(index) for index in indexes[i:i+3])
+        triangles[min((a, b, c), (b, c, a), (c, a, b))] += 1
+    return triangles
+
+
+def animation_data(asset):
+    animations = asset.g['animations']
+    assert len(animations) == 1
+    animation = animations[0]
+    channels = {}
+    for channel in animation['channels']:
+        target = channel['target']
+        key = (asset.g['nodes'][target['node']]['name'], target['path'])
+        assert key not in channels
+        sampler = animation['samplers'][channel['sampler']]
+        channels[key] = (sampler.get('interpolation', 'LINEAR'),
+                         asset.read(sampler['input']), asset.read(sampler['output']))
+    return channels
+
+
+def compare_eye_normals(reference, bundle, output):
+    """Offline authoring audit only: no compositor, model or live package."""
+    output.mkdir(mode=0o700, parents=True, exist_ok=False)
+    receipts = [json.loads((folder/'export.json').read_text()) for folder in (reference, bundle)]
+    before, after = receipts
+    assert not before.get('smoothEyeNormals') and after.get('smoothEyeNormals') is True
+    for key in ('schema', 'stagedOnly', 'blender', 'bakedHz', 'lossless',
+                'smoothBubbleNormals', 'conceptFace'):
+        assert before[key] == after[key], 'unrelated export option changed: '+key
+    assert set(before['characters']) == set(after['characters']) == {'aqua', 'octo'}
+    rows = []
+    for character in ('aqua', 'octo'):
+        old, new = before['characters'][character], after['characters'][character]
+        assert old['blendSha256'] == new['blendSha256']
+        assert set(old['clips']) == set(new['clips']) and len(new['clips']) == 8
+        for clip in sorted(new['clips']):
+            assets = [converter.Asset(folder/character/(clip+'.gltf')) for folder in (reference, bundle)]
+            for asset, receipt in zip(assets, (old['clips'][clip], new['clips'][clip])):
+                assert hashlib.sha256(asset.path.read_bytes()).hexdigest() == receipt['gltfSha256']
+                assert hashlib.sha256(asset.raw).hexdigest() == receipt['binSha256']
+            a, b = assets
+            assert old['clips'][clip]['duration'] == new['clips'][clip]['duration']
+            assert a.g['materials'] == b.g['materials'], 'materials changed'
+            assert a.g['scenes'] == b.g['scenes'] and a.g['scene'] == b.g['scene']
+            assert [{k:v for k,v in n.items() if k != 'mesh'} for n in a.g['nodes']] == [
+                    {k:v for k,v in n.items() if k != 'mesh'} for n in b.g['nodes']], 'parent or transform changed'
+            assert animation_data(a) == animation_data(b), 'authored animation changed'
+            eyes = []
+            for left, right in zip(a.g['nodes'], b.g['nodes']):
+                assert ('mesh' in left) == ('mesh' in right)
+                if 'mesh' not in left:
+                    continue
+                lm, rm = a.g['meshes'][left['mesh']], b.g['meshes'][right['mesh']]
+                assert {k:v for k,v in lm.items() if k != 'primitives'} == {
+                        k:v for k,v in rm.items() if k != 'primitives'}
+                assert len(lm['primitives']) == len(rm['primitives']) == 1
+                lp, rp = lm['primitives'][0], rm['primitives'][0]
+                assert {k:v for k,v in lp.items() if k not in ('attributes','indices','targets')} == {
+                        k:v for k,v in rp.items() if k not in ('attributes','indices','targets')}
+                eye = left['name'].startswith('Glossy eye')
+                assert surface(a, lp, eye) == surface(b, rp, eye), 'surface, normals, morph or UV changed: '+left['name']
+                if eye:
+                    assert len(left.get('children', [])) == 4 and not lp.get('targets') and not rp.get('targets')
+                    assert surface(a, lp) != surface(b, rp), 'eye normals were not changed'
+                    minima = []
+                    vertices = []
+                    for asset, primitive in ((a, lp), (b, rp)):
+                        positions = asset.read(primitive['attributes']['POSITION'])
+                        normals = asset.read(primitive['attributes']['NORMAL'])
+                        vertices.append(len(positions))
+                        minima.append(min(sum(p*n for p,n in zip(position, normal)) /
+                            (math.hypot(*position)*math.hypot(*normal))
+                            for position, normal in zip(positions, normals)))
+                    assert minima[1] > .999 and minima[1] > minima[0], 'outer eye normals remain faceted'
+                    eyes.append({'name':left['name'], 'vertices':vertices, 'minRadialNormalCos':minima})
+            assert len(eyes) == 2
+            rows.append({'character':character, 'clip':clip, 'eyes':eyes,
+                         'unchangedChannels':len(animation_data(a))})
+    result = {'scope':'Offline exact surface/UV/material/parent/keyframe audit; not native pixels, G0/G1, shipping or lossless rendering',
+              'referenceExportSha256':hashlib.sha256((reference/'export.json').read_bytes()).hexdigest(),
+              'candidateExportSha256':hashlib.sha256((bundle/'export.json').read_bytes()).hexdigest(),
+              'pairedClips':len(rows), 'proofs':rows}
+    (output/'result.json').write_text(json.dumps(result, indent=2)+'\n')
+    print('COMPANION_EYE_NORMAL_AUDIT_PASS '+str(len(rows))+' pairedClips exactSurface UV materials parents Float32Keys')
 
 
 def record_native_process(output, result, cases, deadline, contact):
@@ -45,6 +155,40 @@ def offline(folder):
     source.write_text(json.dumps(value))
     asset = converter.Asset(source)
     assert asset.read(0) == [[0,0,0],[1,0,0],[0,1,0]]
+    # Different indexing after normal smoothing must retain the same oriented
+    # triangle corners. Reject changed geometry, reversed winding or normals.
+    from types import SimpleNamespace
+    data = {0:[[1,0,0],[0,1,0],[0,0,1]], 1:[[1,0,0],[0,1,0],[0,0,1]],
+            2:[[0,0],[1,0],[0,1]], 3:[[0],[1],[2]], 4:[[1],[2],[0]], 5:[[0],[2],[1]],
+            6:[[.5,.5,.5]]*3, 7:[[1,0,0],[0,1,0],[0,0,2]],
+            8:[[0,0],[.5,0],[0,1]], 9:[[0],[1],[2],[0],[1],[2]]}
+    fake = SimpleNamespace(read=lambda index:data[index])
+    triangle = {'indices':3,'attributes':{'POSITION':0,'NORMAL':1,'TEXCOORD_0':2}}
+    rotated = dict(triangle, indices=4)
+    assert surface(fake, triangle) == surface(fake, rotated)
+    assert surface(fake, triangle) != surface(fake, dict(triangle, indices=5))
+    smooth = dict(triangle, attributes=dict(triangle['attributes'], NORMAL=6))
+    moved = dict(triangle, attributes=dict(triangle['attributes'], POSITION=7))
+    assert surface(fake, triangle) != surface(fake, smooth)
+    assert surface(fake, triangle, True) == surface(fake, smooth, True)
+    assert surface(fake, triangle, True) != surface(fake, moved, True)
+    changed_uv = dict(triangle, attributes=dict(triangle['attributes'], TEXCOORD_0=8))
+    assert surface(fake, triangle, True) != surface(fake, changed_uv, True)
+    assert surface(fake, triangle) != surface(fake, dict(triangle, indices=9))
+    morphed = dict(triangle, targets=[{'POSITION':0}])
+    assert surface(fake, morphed) != surface(fake, dict(triangle, targets=[{'POSITION':7}]))
+    fake.g = {'nodes':[{'name':'Glossy eye'}], 'animations':[{
+        'channels':[{'sampler':0,'target':{'node':0,'path':'scale'}}],
+        'samplers':[{'input':3,'output':1,'interpolation':'LINEAR'}]}]}
+    original_keys = animation_data(fake)
+    fake.g['animations'][0]['samplers'][0]['output'] = 6
+    assert animation_data(fake) != original_keys
+    fake.g['animations'][0]['samplers'][0].update(output=1, interpolation='STEP')
+    assert animation_data(fake) != original_keys
+    uv_value = json.loads(json.dumps(value))
+    uv_value['accessors'][0].update(type='VEC2', count=3)
+    source.write_text(json.dumps(uv_value))
+    assert converter.Asset(source).read(0) == [[0,0],[0,1],[0,0]]
     for index in (-1,True,2):
         try: asset.read(index)
         except ValueError: pass
@@ -81,7 +225,7 @@ def offline(folder):
         assert receipt['scheduledFrames']==2 and receipt['capturedFrames']==count
         assert receipt['missingFrames']==[case['name'] for case in cases[count:]]
         assert receipt['completionMarker']==bool(marker) and receipt['contact'] is True
-    print("COMPANION_NATIVE_CONVERTER_PASS boundedBuffers finiteValues nativeResultReceipt")
+    print("COMPANION_NATIVE_CONVERTER_PASS boundedBuffers finiteValues nativeResultReceipt exactNormalsAudit")
 
 
 QML = '''import QtQuick
@@ -590,6 +734,7 @@ def native(bundle, output, host, video=False, performance=False, optics=False, c
 if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bundle",type=Path)
+    parser.add_argument("--reference-bundle",type=Path,help="offline-only exact comparison for an unsaved --smooth-eyes export")
     parser.add_argument("--output",type=Path)
     parser.add_argument("--video",action="store_true",help="also retain two short original 3D review movies")
     parser.add_argument("--performance",action="store_true",help="also prove synthetic native controller interruptions and blends")
@@ -604,4 +749,8 @@ if __name__=="__main__":
     if args.performance and not args.bundle:parser.error("--performance requires the owned --bundle and --output")
     if args.optics and not args.bundle:parser.error("--optics requires the owned --bundle and --output")
     if args.contact and not args.bundle:parser.error("--contact requires the owned --bundle and --output")
-    if args.bundle:native(args.bundle.resolve(),args.output.resolve(),args.hadalis_root.resolve(),args.video,args.performance,args.optics,args.contact)
+    if args.reference_bundle:
+        if not args.bundle or args.video or args.performance or args.optics or args.contact:
+            parser.error("--reference-bundle requires --bundle/--output and excludes native capture options")
+        compare_eye_normals(args.reference_bundle.resolve(), args.bundle.resolve(), args.output.resolve())
+    elif args.bundle:native(args.bundle.resolve(),args.output.resolve(),args.hadalis_root.resolve(),args.video,args.performance,args.optics,args.contact)
