@@ -124,6 +124,35 @@ Exact source/input/command receipts, rendered geometry and frames: `${XDG_STATE_
 
 The installed package, disabled Companion preference, saved Blender scenes, original clips and production shaders are untouched. Rollback removes the source-only contact option/assets; no live restoration is needed. Next safe work: audit the existing AI cadence completion contract with synthetic helper responses; real AI-03 still awaits an explicitly selected available model/runtime, and original G0/G1 remain OPEN.
 
+### VIS-01 local GPU attempt — 2026-10-09 06:34 UTC
+
+**BLOCKED_LOCAL / INCONCLUSIVE_CAPTURE_VARIANCE**, exit **2**. Tested a clean
+local clone of Hadanion `dc4d5ecfe118e819369da1e2338875f13ae71d3a` with Hadalis
+`2c06e22151fe3f18bf114e71417acb755deea811`; preserved the original checkout's
+concurrent cowork changes. Command: `python3 scripts/wull-shader-ab-sequence.py
+--output <fresh-private-directory>/sequence --graphics opengl --diagnostics`,
+inside Hadalis's private nested Niri. Qt/qsb 6.12.0 reported real OpenGL on AMD
+Radeon 740M / Mesa 26.2.4. This was not installed-package or owner-session QA.
+
+All **15 states / 90 images** captured; the independently named A/A QSBs have
+identical source and binary hashes. Five states vary between repeats:
+Aqua yaw, faceplant, tip, high detail, and Octo high detail. Repeat differences
+total **73 baseline / 64 candidate pixels**, with maximum channel delta **16**;
+cross-item differences total 57 pixels. Ten states have identical repeats.
+The A/A oracle correctly refused qualification. Negative and A/B stages did
+not run; no production shader or quality setting changed. Saved images and
+receipts were inspected; the cause of variation remains unestablished. Do not
+retry this consumed lineage or relax RGBA equality.
+
+Evidence: `/home/llocphann/.local/state/hadanion/shader-ab/20261009-063439-dc4d5ecfe118/`
+contains `source.json`, the clean source clone, `run.log`, `sequence/sequence.json`,
+`sequence/aa/result.json`, `sequence/aa/capture.log` and all PNGs. PASS/FAIL/SKIP:
+**0 qualified gates / 1 inconclusive A/A / 2 unexecuted dependent stages**.
+Rollback: no live restoration needed; the attempt only created private evidence.
+Next: offline diagnosis of these saved repeat differences; progress independent
+READY tickets before any fresh trial with a supported oracle change. G0/G1/E1
+remain open and no CPU/RAM/GPU percentage is claimed.
+
 ## P0 — Resolve renderer evidence before shader modifications
 
 - [ ] Run [G0 sequence](../../docs/HADANION_RENDERER_OPTIMIZATION_DECISION_20261008.md#one-command-local-chatbot-qualification-preferred) from **clean** Hadanion checkout on actual Wayland GPU. Require **A/A pixel-identical, deliberate negative detectable and independently built candidate A/B**; inspect receipt + images; classify variance, not guess its cause. Never reuse a report from the older schema or turn `INCONCLUSIVE` into `PASS`.
