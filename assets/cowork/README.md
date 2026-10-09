@@ -22,7 +22,7 @@ uv run --offline --python 3.11 --with bpy==4.3.0 --with 'numpy<2' python scripts
 ```
 
 The verifier reopens both saved scenes, checks exported interpolation, alternating
-keyboard contact, unchanged actor volume, four-rim parent transforms, opaque
+keyboard motion, unchanged actor volume, four-rim parent transforms, opaque
 Octo tentacles and complete prop removal after close. A fixed five-pose render
 schedule supports visual inspection. The reflective studio disc is a preview
 surface, not a desktop effect. Four-rim geometry is **not** Niri/input acceptance.
@@ -46,3 +46,33 @@ authorization API. Only the permitted host owner may supply semantics and cues;
 AI text cannot call it. No desktop event subscription, permanent timer, inference
 or new window is created. Runtime integration still needs one explicit actor
 owner and physical acceptance; the library does not authorize rollout.
+
+## Private native 3D preview
+
+The two scripts below export the original staged scene geometry and eight
+performances per actor, then display them in one Qt Quick 3D `Loader3D` in an
+owned compositor. No installed actor, user setting, model, vault or desktop hook
+is touched. The generated meshes, morphs, normals and parent transforms remain
+three-dimensional; no sprites or planar falling poses are substituted.
+
+```sh
+uv run --offline --python 3.11 --with bpy==4.3.0 --with 'numpy<2' python scripts/companion-export-cowork-native.py --output /new/owned/export
+python3 scripts/test-wull-cowork-native.py --bundle /new/owned/export --output /new/owned/proof --hadalis-root /clean/Hadalis
+```
+
+The fixed 40-frame schedule checks all paired clips, independent hand/tentacle
+motion and cup attachment, four parent rotations, four palettes, opaque Octo
+limbs, closed-prop removal and a fully unloaded actor when off. Generated material colors follow the supplied
+palette; native transmission is a **prototype mapping**. An original neutral
+studio probe supplies reflections. The installed Qt `ProceduralMesh` and
+`Timeline` types avoid needing Assimp or downloading a system dependency.
+
+This authoring preview bakes at 60 Hz. It does not replace the exact stored
+F-curves, the live SDF renderer or its quality tiers, and cannot establish
+lossless parity, concept approval, live theme/input behavior or resource costs.
+Buffers/morph arrays and text keyframes are staging data, not an optimized
+shipping format. The renderer/event-owner integration remains open.
+
+Add `--video` to the proof command to retain two short native 3D review movies
+and their original PNG frames. The movies are review artifacts; they are not
+sprite assets, a GPU timing measurement or lossless-renderer evidence.
